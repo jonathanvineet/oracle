@@ -3,6 +3,11 @@ import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'rea
 import { CameraView, useCameraPermissions } from 'expo-camera'
 import * as Network from 'expo-network'
 
+// Global state for frame streaming
+let latestFrameBase64 = null
+let wsServerRef = null
+let wsPort = 8080
+
 export default function StreamScreen() {
   const [permission, requestPermission] = useCameraPermissions()
   const [isStreaming, setIsStreaming] = useState(false)
@@ -33,21 +38,35 @@ export default function StreamScreen() {
 
   const startWebSocketServer = async () => {
     try {
-      Alert.alert(
-        '🎬 Streaming Started',
-        'WebSocket server is now hosting on port 8080.\n\nYour Mac app should connect to:\nws://' + tailscaleIP + ':' + WEBSOCKET_PORT,
-        [{ text: 'OK' }]
-      )
-
+      const localIp = await Network.getIpAddressAsync()
+      
+      console.log(`\n📡 ORACLE Frame Server`)
+      console.log(`📍 Android IP: ${localIp}`)
+      console.log(`🔌 Port: ${wsPort}`)
+      console.log(`📺 Mac: WebSocket ws://${localIp}:${wsPort}`)
+      console.log(`🎬 Starting camera capture...\n`)
+      
       setIsStreaming(true)
       startCapturingFrames()
+      
+      // For now, show the connection info
+      // The WebSocket server will be implemented as a background service
+      setTailscaleIP(localIp)
+      
+      Alert.alert(
+        '🎬 Streaming Ready',
+        `Your Android IP:\n${localIp}\n\nOn Mac Übersicht widget:\n1. Edit index.jsx\n2. Set ANDROID_IP = '${localIp}'\n3. Reload widget (⌘+R)`,
+        [{ text: 'OK' }]
+      )
     } catch (error) {
-      Alert.alert('Error', 'Failed to start streaming: ' + error.message)
+      Alert.alert('Error', 'Failed to start: ' + error.message)
+      setIsStreaming(false)
     }
   }
 
   const startCapturingFrames = () => {
     let count = 0
+    let macServerIP = localIP // This will be set via the alert
 
     const captureFrame = async () => {
       try {
@@ -60,20 +79,31 @@ export default function StreamScreen() {
         })
 
         if (photo.base64) {
-          const frameData = JSON.stringify({
-            type: 'frame',
-            base64: 'data:image/jpeg;base64,' + photo.base64,
-            frameId: count,
-            timestamp: Date.now(),
-          })
-
-          // In production, broadcast frameData to all WebSocket clients
+          // Store latest frame globally
+          latestFrameBase64 = photo.base64
+          
           count++
           setFrameCount(count)
-        }
-
-        if (photo.uri) {
-          console.log('Captured frame:', count)
+          console.log(`📸 Frame ${count} captured (${photo.base64.length} bytes)`)
+          
+          // Send frame to Mac server
+          try {
+            const response = await fetch(`http://${macServerIP}:8080/frame`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                base64: photo.base64,
+                timestamp: Date.now(),
+                frameNumber: count
+              })
+            })
+            
+            if (!response.ok) {
+              console.warn(`Server response: ${response.status}`)
+            }
+          } catch (fetchError) {
+            console.error('Failed to send frame:', fetchError.message)
+          }
         }
       } catch (error) {
         console.error('Frame capture error:', error)
@@ -93,15 +123,10 @@ export default function StreamScreen() {
       clearInterval(captureIntervalRef.current)
     }
 
-    if (wsServerRef.current) {
-      wsServerRef.current.close()
-      wsServerRef.current = null
-    }
-
-    clientsRef.current = []
     setIsStreaming(false)
     setFrameCount(0)
-    Alert.alert('Streaming Stopped', 'WebSocket server closed.')
+    latestFrameBase64 = null
+    Alert.alert('Streaming Stopped', 'Frame capture ended.')
   }
 
   if (!permission) {
