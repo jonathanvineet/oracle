@@ -1,0 +1,26 @@
+{
+  "name": "oracle-electron",
+  "version": "0.1.0",
+  "private": true,
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --mac"
+  },
+  "dependencies": {
+    "keytar": "^8.0.0"
+  },
+  "devDependencies": {
+    "electron": "^26.0.0",
+    "electron-builder": "^24.0.0"
+  },
+  "build": {
+    "appId": "com.oracle.wodget",
+    "mac": {
+      "target": ["dmg"],
+      "category": "public.app-category.utilities"
+    },
+    "files": ["**/*"],
+    "extraResources": []
+  }
+}
