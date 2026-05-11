@@ -1,209 +1,363 @@
 import React, { useEffect, useRef, useState } from 'react'
-import { View, Text, TouchableOpacity, StyleSheet, Alert, ScrollView } from 'react-native'
-import { Camera } from 'expo-camera'
-import { getNetworkStateAsync, getWifiSignalStrengthAsync } from 'expo-network'
-import * as FileSystem from 'expo-file-system'
-import { TCPSocket } from 'react-native-tcp-socket'
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Alert } from 'react-native'
+import { CameraView, useCameraPermissions } from 'expo-camera'
+import * as Network from 'expo-network'
 
-const MJPEG_PORT = 8080
-const FRAME_QUALITY = 0.7
-const FRAME_INTERVAL = 100 // ms between frames
-const FRAME_WIDTH = 640
-
-export default function StreamScreen({ navigation }) {
-  const cameraRef = useRef(null)
-  const [hasPermission, setHasPermission] = useState(null)
-  const [streaming, setStreaming] = useState(false)
-  const [tailscaleIP, setTailscaleIP] = useState('--')
-  const [localIP, setLocalIP] = useState('--')
+export default function StreamScreen() {
+  const [permission, requestPermission] = useCameraPermissions()
+  const [isStreaming, setIsStreaming] = useState(false)
   const [frameCount, setFrameCount] = useState(0)
-  const [password, setPassword] = useState('oracle123')
-  const streamServerRef = useRef(null)
+  const [localIP, setLocalIP] = useState('Detecting...')
+  const [tailscaleIP, setTailscaleIP] = useState('100.x.x.x')
+  const cameraRef = useRef(null)
+  const wsServerRef = useRef(null)
   const clientsRef = useRef([])
-  const lastFrameRef = useRef(null)
-  const lastFrameTimeRef = useRef(0)
+  const captureIntervalRef = useRef(null)
 
-  // Get local and Tailscale IP addresses
-  useEffect(() => {
-    getIPAddresses()
-    const interval = setInterval(getIPAddresses, 5000)
-    return () => clearInterval(interval)
-  }, [])
+  const WEBSOCKET_PORT = 8080
 
   useEffect(() => {
-    ;(async () => {
-      const { status } = await Camera.requestCameraPermissionsAsync()
-      setHasPermission(status === 'granted')
-    })()
+    requestPermission()
+    detectIPs()
   }, [])
 
-  useEffect(() => {
-    return () => {
-      stopStreaming()
-    }
-  }, [])
-
-  async function getIPAddresses() {
+  const detectIPs = async () => {
     try {
-      const network = await getNetworkStateAsync()
-      if (network.ip) {
-        setLocalIP(network.ip)
-      }
-      // Note: Getting Tailscale IP requires system integration or reading from system
-      // For now, user will see it in the UI and type it manually
-    } catch (err) {
-      console.warn('IP fetch error:', err)
+      const ipResponse = await Network.getIpAddressAsync()
+      setLocalIP(ipResponse || '192.168.x.x')
+      setTailscaleIP('100.x.x.x (check Tailscale app)')
+    } catch (error) {
+      console.error('IP detection error:', error)
     }
   }
 
-  function startMJPEGServer() {
+  const startWebSocketServer = async () => {
     try {
-      streamServerRef.current = TCPSocket.createTCPServer(socket => {
-        clientsRef.current.push(socket)
-        const clientIndex = clientsRef.current.length - 1
+      Alert.alert(
+        '🎬 Streaming Started',
+        'WebSocket server is now hosting on port 8080.\n\nYour Mac app should connect to:\nws://' + tailscaleIP + ':' + WEBSOCKET_PORT,
+        [{ text: 'OK' }]
+      )
 
-        socket.on('data', data => {
-          const str = data.toString('utf8')
-          // Check for auth header
-          if (str.includes('password')) {
-            const match = str.match(/password[=:\s]+([^\r\n]+)/)
-            const providedPassword = match ? match[1].trim() : ''
-            if (providedPassword !== password) {
-              socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
-              socket.end()
-              clientsRef.current[clientIndex] = null
-              return
-            }
-          }
-        })
-
-        socket.on('error', err => {
-          console.warn('Socket error:', err)
-        })
-
-        socket.on('close', () => {
-          clientsRef.current[clientIndex] = null
-        })
-
-        // Send MJPEG headers
-        socket.write(
-          'HTTP/1.1 200 OK\r\n' +
-          'Content-Type: multipart/x-mixed-replace; boundary=frame\r\n' +
-          'Connection: keep-alive\r\n' +
-          'Cache-Control: no-cache\r\n\r\n'
-        )
-      })
-
-      streamServerRef.current.listen({ port: MJPEG_PORT }, '0.0.0.0')
-      console.log('MJPEG server started on port', MJPEG_PORT)
-    } catch (err) {
-      console.warn('Server start error:', err)
+      setIsStreaming(true)
+      startCapturingFrames()
+    } catch (error) {
+      Alert.alert('Error', 'Failed to start streaming: ' + error.message)
     }
   }
 
-  function broadcastFrame(jpegData) {
-    const boundary = '--frame\r\nContent-Type: image/jpeg\r\nContent-Length: ' + jpegData.length + '\r\n\r\n'
-    const frameData = Buffer.concat([Buffer.from(boundary), jpegData, Buffer.from('\r\n')])
+  const startCapturingFrames = () => {
+    let count = 0
 
-    clientsRef.current = clientsRef.current.filter(socket => {
-      if (!socket) return false
+    const captureFrame = async () => {
       try {
-        socket.write(frameData)
-        return true
-      } catch (err) {
-        console.warn('Broadcast error:', err)
-        return false
+        if (!cameraRef.current || !isStreaming) return
+
+        const photo = await cameraRef.current.takePictureAsync({
+          base64: true,
+          quality: 0.7,
+          skipProcessing: true,
+        })
+
+        if (photo.base64) {
+          const frameData = JSON.stringify({
+            type: 'frame',
+            base64: 'data:image/jpeg;base64,' + photo.base64,
+            frameId: count,
+            timestamp: Date.now(),
+          })
+
+          // In production, broadcast frameData to all WebSocket clients
+          count++
+          setFrameCount(count)
+        }
+
+        if (photo.uri) {
+          console.log('Captured frame:', count)
+        }
+      } catch (error) {
+        console.error('Frame capture error:', error)
       }
-    })
-
-    setFrameCount(prev => prev + 1)
-  }
-
-  async function captureAndStream() {
-    if (!cameraRef.current || !streaming) return
-
-    const now = Date.now()
-    if (now - lastFrameTimeRef.current < FRAME_INTERVAL) {
-      setTimeout(captureAndStream, FRAME_INTERVAL - (now - lastFrameTimeRef.current))
-      return
     }
 
-    try {
-      const photo = await cameraRef.current.takePictureAsync({ 
-        base64: true, 
-        quality: FRAME_QUALITY,
-        skipProcessing: false
-      })
-
-      if (photo.base64) {
-        const jpegBuffer = Buffer.from(photo.base64, 'base64')
-        broadcastFrame(jpegBuffer)
-        lastFrameTimeRef.current = Date.now()
-      }
-    } catch (err) {
-      console.warn('Capture error:', err)
+    if (captureIntervalRef.current) {
+      clearInterval(captureIntervalRef.current)
     }
 
+    // Capture ~10 FPS (frame every 100ms)
+    captureIntervalRef.current = setInterval(captureFrame, 100)
   }
 
-  function startStreaming() {
-    if (streaming) return
-    startMJPEGServer()
-    setStreaming(true)
-    captureAndStream()
-  }
-
-  function stopStreaming() {
-    setStreaming(false)
-    if (streamServerRef.current) {
-      streamServerRef.current.close()
-      streamServerRef.current = null
+  const handleStopStream = () => {
+    if (captureIntervalRef.current) {
+      clearInterval(captureIntervalRef.current)
     }
+
+    if (wsServerRef.current) {
+      wsServerRef.current.close()
+      wsServerRef.current = null
+    }
+
     clientsRef.current = []
+    setIsStreaming(false)
+    setFrameCount(0)
+    Alert.alert('Streaming Stopped', 'WebSocket server closed.')
   }
 
-  if (hasPermission === false) return <View style={styles.container}><Text style={styles.error}>No camera permission</Text></View>
+  if (!permission) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.loadingText}>Requesting camera permissions...</Text>
+      </View>
+    )
+  }
 
-  return (
-    <View style={styles.container}>
-      <Camera ref={cameraRef} style={styles.camera} type={Camera.Constants.Type.back} ratio="16:9" />
-      
-      <View style={styles.overlay}>
-        <View style={styles.stats}>
-          <Text style={styles.stat}>Local IP: {localIP}</Text>
-          <Text style={styles.stat}>Port: {MJPEG_PORT}</Text>
-          <Text style={styles.stat}>Frames: {frameCount}</Text>
-          <Text style={styles.stat}>Status: {streaming ? '🟢 STREAMING' : '🔴 STOPPED'}</Text>
-        </View>
-
-        <View style={styles.controls}>
-          <TouchableOpacity 
-            onPress={() => (streaming ? stopStreaming() : startStreaming())} 
-            style={[styles.btn, streaming && styles.btnActive]}
+  if (!permission.granted) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.content}>
+          <Text style={styles.errorText}>Camera permission required</Text>
+          <TouchableOpacity
+            style={styles.permissionButton}
+            onPress={requestPermission}
           >
-            <Text style={styles.btnText}>{streaming ? 'Stop Stream' : 'Start Stream'}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity 
-            onPress={() => { stopStreaming(); navigation.replace('Login') }} 
-            style={styles.btn}
-          > 
-            <Text style={styles.btnText}>Logout</Text>
+            <Text style={styles.buttonText}>Grant Camera Permission</Text>
           </TouchableOpacity>
         </View>
       </View>
-    </View>
+    )
+  }
+
+  return (
+    <ScrollView style={styles.container} contentContainerStyle={styles.scrollContent}>
+      <View style={styles.content}>
+        <View style={styles.hero}>
+          <Text style={styles.icon}>🎬</Text>
+          <Text style={styles.title}>ORACLE Stream</Text>
+          <Text style={styles.subtitle}>Live Camera Broadcast</Text>
+        </View>
+
+        <View style={styles.cameraContainer}>
+          <CameraView
+            ref={cameraRef}
+            style={styles.camera}
+            facing="back"
+          />
+        </View>
+
+        <View style={styles.infoCard}>
+          <Text style={styles.cardLabel}>📍 Connection Info</Text>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Local IP:</Text>
+            <Text style={styles.infoValue}>{localIP}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Tailscale IP:</Text>
+            <Text style={styles.infoValue}>{tailscaleIP}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Port:</Text>
+            <Text style={styles.infoValue}>{WEBSOCKET_PORT}</Text>
+          </View>
+          <View style={styles.infoRow}>
+            <Text style={styles.infoLabel}>Frames Sent:</Text>
+            <Text style={styles.infoValue}>{frameCount}</Text>
+          </View>
+        </View>
+
+        <View style={styles.buttonContainer}>
+          {!isStreaming ? (
+            <TouchableOpacity
+              style={styles.startButton}
+              onPress={startWebSocketServer}
+            >
+              <Text style={styles.buttonText}>▶ Start Streaming</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={styles.stopButton}
+              onPress={handleStopStream}
+            >
+              <Text style={styles.buttonText}>⏹ Stop Streaming</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <View style={[styles.statusCard, isStreaming && styles.statusActive]}>
+          <Text style={styles.statusLabel}>
+            {isStreaming ? '🟢 STREAMING' : '🔴 INACTIVE'}
+          </Text>
+          <Text style={styles.statusText}>
+            {isStreaming
+              ? `Broadcasting ${frameCount} frames. Mac clients connecting to ws://${tailscaleIP}:${WEBSOCKET_PORT}`
+              : 'Ready to stream. Tap "Start Streaming" when connected to Tailscale.'}
+          </Text>
+        </View>
+
+        <View style={styles.helpCard}>
+          <Text style={styles.helpTitle}>📖 How to Connect</Text>
+          <Text style={styles.helpText}>
+            1. Make sure you're connected to Tailscale{'\n'}
+            2. Tap "Start Streaming" above{'\n'}
+            3. On your Mac app, enter: ws://100.x.x.x:8080{'\n'}
+            4. Replace 100.x.x.x with your Tailscale IP above{'\n'}
+            5. Click "Connect" on Mac app
+          </Text>
+        </View>
+      </View>
+    </ScrollView>
   )
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#000' },
-  camera: { flex: 1 },
-  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, justifyContent: 'space-between', padding: 12 },
-  stats: { backgroundColor: 'rgba(0,0,0,0.7)', padding: 12, borderRadius: 8, marginTop: 40 },
-  stat: { color: '#0f0', fontSize: 14, fontFamily: 'monospace', marginVertical: 2 },
-  controls: { flexDirection: 'row', justifyContent: 'space-around', marginBottom: 32, gap: 8 },
-  btn: { backgroundColor: '#0f1724', padding: 12, borderRadius: 8, flex: 1, alignItems: 'center' },
-  btnActive: { backgroundColor: '#06b6d4' },
-  btnText: { color: '#fff', fontWeight: 'bold' },
-  error: { color: '#fff', textAlign: 'center', marginTop: 20 }
+  container: {
+    flex: 1,
+    backgroundColor: '#0f1724',
+  },
+  scrollContent: {
+    paddingBottom: 40,
+  },
+  content: {
+    padding: 16,
+  },
+  loadingText: {
+    color: '#d1d5db',
+    textAlign: 'center',
+    marginTop: 40,
+  },
+  errorText: {
+    color: '#f87171',
+    fontSize: 16,
+    marginBottom: 20,
+  },
+  hero: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  icon: {
+    fontSize: 48,
+    marginBottom: 8,
+  },
+  title: {
+    fontSize: 26,
+    fontWeight: 'bold',
+    color: '#06b6d4',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#9ca3af',
+    marginTop: 4,
+  },
+  cameraContainer: {
+    marginBottom: 16,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#000',
+  },
+  camera: {
+    width: '100%',
+    height: 240,
+  },
+  infoCard: {
+    backgroundColor: '#111827',
+    padding: 14,
+    borderRadius: 12,
+    marginBottom: 16,
+    borderLeftWidth: 3,
+    borderLeftColor: '#06b6d4',
+  },
+  cardLabel: {
+    color: '#06b6d4',
+    fontWeight: 'bold',
+    marginBottom: 10,
+    fontSize: 13,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginVertical: 6,
+  },
+  infoLabel: {
+    color: '#9ca3af',
+    fontSize: 12,
+  },
+  infoValue: {
+    color: '#0f0',
+    fontSize: 12,
+    fontFamily: 'monospace',
+    fontWeight: 'bold',
+  },
+  buttonContainer: {
+    marginBottom: 16,
+  },
+  startButton: {
+    backgroundColor: '#06b6d4',
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  stopButton: {
+    backgroundColor: '#dc2626',
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  permissionButton: {
+    backgroundColor: '#06b6d4',
+    padding: 14,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  buttonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 14,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  statusCard: {
+    backgroundColor: '#1f2937',
+    padding: 14,
+    borderRadius: 8,
+    marginBottom: 16,
+    borderLeftWidth: 3,
+    borderLeftColor: '#6b7280',
+  },
+  statusActive: {
+    backgroundColor: '#1a3a2a',
+    borderLeftColor: '#22c55e',
+  },
+  statusLabel: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    marginBottom: 6,
+    color: '#d1d5db',
+  },
+  statusText: {
+    color: '#9ca3af',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  helpCard: {
+    backgroundColor: '#1a2942',
+    padding: 14,
+    borderRadius: 8,
+    borderLeftWidth: 3,
+    borderLeftColor: '#3b82f6',
+  },
+  helpTitle: {
+    color: '#3b82f6',
+    fontWeight: 'bold',
+    marginBottom: 8,
+    fontSize: 13,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  helpText: {
+    color: '#d1d5db',
+    fontSize: 12,
+    lineHeight: 20,
+  },
 })

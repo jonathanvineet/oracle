@@ -1,168 +1,121 @@
-# 🖥️ ORACLE — macOS Übersicht Widget
+# 🖥️ ORACLE Widget - DEPRECATED
 
-Beautiful, lightweight desktop widget for viewing your Android camera stream. Displays as a floating window on your Mac desktop.
+**⚠️ This Übersicht widget is for the old IP Webcam architecture. Not used in current version.**
 
-## Features
+## Current Approach
 
-- 🎬 Live video stream display
-- 📊 Real-time connection status
-- 🔄 Auto-reconnect if stream drops
-- 🎨 Draggable, resizable widget
-- 🎯 Transparent, always-on-top
-- ⚡ ~2% CPU usage
-- 🔐 Encrypted via Tailscale
+The new ORACLE uses a **custom Tauri macOS app** instead of Übersicht:
+- Download from Homebrew: `brew install oracle`
+- More powerful and customizable
+- Better performance and control
+- Native app integration
 
-## Installation
+## Legacy Widget
 
-### Via Homebrew (Recommended)
+This folder contains the old Übersicht widget (kept for reference).
 
-```bash
-brew tap yourname/oracle
-brew install oracle-widget
-oracle-widget setup
-```
-
-### Manual Installation
-
-1. Install Übersicht:
-   ```bash
-   brew install uebersicht
-   ```
-
-2. Copy widget to Übersicht folder:
-   ```bash
-   cp -r widget ~/.config/Übersicht/widgets/oracle
-   ```
-
-3. Run setup:
-   ```bash
-   oracle-widget setup
-   ```
-
-## Setup
-
-Run the setup script:
+If you want to use it with the legacy IP Webcam approach:
 
 ```bash
-oracle-widget setup
+mkdir -p ~/Library/Application\ Support/Übersicht/widgets/oracle.widget
+cp index.jsx ~/Library/Application\ Support/Übersicht/widgets/oracle.widget/
+# Edit to add your phone's Tailscale IP
 ```
 
-You'll be prompted for:
-
-1. **Android device's Tailscale IP** (100.x.x.x)
-   - Find it by running `tailscale status` on Android
-   - Or see it displayed in the Expo app
-
-2. **Stream password** (optional)
-   - Defaults to "oracle123" if left empty
-   - Used for optional stream authentication
-
-Configuration is saved to `~/.oracle/config.json`.
+But **recommended:** Use the new Tauri app instead.
 
 ## Usage
 
-1. Open Übersicht (⌘Space, type "Übersicht", press Enter)
-2. Widget appears on desktop
-3. Shows live stream if Android device is streaming
-4. Drag to move, resize from corners
-5. Always-on-top (stays visible in other apps)
+1. **Open Übersicht**
+   - Press ⌘Space
+   - Type "Übersicht"
+   - Press Enter
 
-## Configuration
+2. **Widget appears** 
+   - Top right corner of desktop
+   - Shows live camera feed
+   - Draggable with mouse
 
-Edit `~/.oracle/config.json`:
+3. **Controls**
+   - **Drag** to move widget
+   - **Resize** from corners (drag on edge)
+   - **⌘Q** on Übersicht to hide all widgets
 
-```json
-{
-  "streamUrl": "http://100.x.x.x:8080/video",
-  "password": "oracle123",
-  "refreshInterval": 5000,
-  "setupDate": "2026-05-11T00:00:00Z"
-}
-```
+---
 
-- `streamUrl` — Android device's MJPEG endpoint
-- `password` — Stream password (if protected)
-- `refreshInterval` — Update frequency in milliseconds
+## Features
 
-## Reconfiguration
+- 🎬 **Live streaming** — Real-time MJPEG from IP Webcam
+- 🔐 **Private & encrypted** — Via Tailscale tunnel
+- 📌 **Always-on-top** — Stays visible above other windows
+- ⚡ **Minimal CPU** — ~2% usage when active
+- 🎨 **Draggable** — Move anywhere on screen
+- 🔄 **Auto-reconnect** — Retries if stream drops
 
-To change settings:
-
-```bash
-oracle-widget setup
-```
-
-Or directly edit `~/.oracle/config.json`.
+---
 
 ## Troubleshooting
 
-### Widget doesn't appear
+### Black screen / "No video"
 
-- Make sure Übersicht is running (⌘Space → Übersicht)
-- Check widget visibility in Übersicht preferences
-- Restart Übersicht: Kill Übersicht and reopen
+1. Check IP Webcam is **running** on Android (green "Stop" button)
+2. Verify Tailscale is **connected**: `tailscale status`
+3. Verify IP is correct: `curl http://100.x.x.x:8080/video`
+4. Restart Übersicht: ⌘Q, then reopen
 
-### No video stream
+### Widget not visible
 
-- Ensure "Start Stream" is running on Android app
-- Check Tailscale connection: `tailscale status`
-- Verify IP: `ping 100.x.x.x` (should respond)
-- Check firewall: port 8080 must be accessible
+- Check Übersicht window is open
+- Verify widget file location: `~/Library/Application\ Support/Übersicht/widgets/oracle.widget/index.jsx`
+- Restart Übersicht if widget file was just edited
 
-### Stream shows "Waiting for stream..."
+### High latency
 
-- Android app may not be streaming yet
-- Tap "Start Stream" on Android app
-- Widget will auto-connect within 5 seconds
+- Lower video resolution in IP Webcam: Settings → Video size
+- Check Tailscale connection quality: `tailscale status`
+- Move device closer to WiFi router
 
-### Widget is slow or laggy
+---
 
-- Reduce `FRAME_INTERVAL` on Android (higher FPS)
-- Or increase `refreshInterval` in widget config (lower refresh rate)
-- Check Tailscale connection quality
+## Customization
 
-## Commands
+Edit `index.jsx` to customize:
 
-```bash
-# Initial setup
-oracle-widget setup
+- **Position**: Change `top: 30px; right: 30px;`
+- **Size**: Change `width: 360px; height: 240px;`
+- **Transparency**: Change `rgba(15,15,15,0.7)` (0=transparent, 1=opaque)
+- **Border radius**: Change `border-radius: 18px;`
 
-# View current configuration
-cat ~/.oracle/config.json
+---
 
-# Reconfigure stream IP/password
-oracle-widget setup
+## Advanced
 
-# View help
-oracle-widget --help
+### Change Port
+
+If IP Webcam uses different port (e.g., 8081):
+
+```jsx
+const STREAM_URL = "http://100.x.x.x:8081/video";
 ```
 
-## Performance
+### Use Local IP Instead
 
-- **CPU**: ~2% when displaying stream
-- **Memory**: ~50MB
-- **Network**: ~500KB/s @ 10 FPS, 640px width
-- **Latency**: <100ms over Tailscale
+On same WiFi network (no Tailscale):
 
-Adjust Android app settings to trade quality for performance:
+```jsx
+const STREAM_URL = "http://192.168.1.100:8080/video";
+```
 
-- Reduce `FRAME_QUALITY` for lower bandwidth
-- Increase `FRAME_INTERVAL` for lower FPS
-- Reduce `FRAME_WIDTH` for smaller resolution
+---
 
-## Development
+## Performance Notes
 
-Widget file: `widget/index.jsx`
+- Widget only loads image when **visible** on screen
+- Refresh disabled (`refreshFrequency = false`) — only updates on image load
+- Smooth motion via MJPEG streaming (not full video codec)
+- <50ms latency typical over Tailscale
 
-Edit directly to customize appearance. Changes reload automatically in Übersicht (may need to refresh).
-
-### Customization Ideas
-
-- Change widget size in CSS (currently 320px wide)
-- Add timestamp overlay
-- Display FPS counter
-- Add recording button
-- Change color scheme
+---
 
 ## License
 

@@ -1,0 +1,17 @@
+{
+  "name": "oracle",
+  "version": "1.0.0",
+  "description": "🎬 Live Camera Widget - Receive frames from Android via Tailscale",
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "bundle": "npm run build",
+    "tauri": "tauri"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^1.5.0",
+    "@tauri-apps/api": "^1.5.0"
+  },
+  "dependencies": {}
+}

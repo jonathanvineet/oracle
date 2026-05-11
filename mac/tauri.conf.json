@@ -1,0 +1,43 @@
+{
+  "productName": "ORACLE",
+  "version": "1.0.0",
+  "identifier": "com.oracle.camera",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run build",
+    "devPath": "../src",
+    "frontendDist": "../src"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "ORACLE - Live Camera",
+        "width": 400,
+        "height": 500,
+        "resizable": true,
+        "fullscreen": false,
+        "alwaysOnTop": true
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["dmg"],
+    "identifier": "com.oracle.camera",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/256x256.png",
+      "icons/512x512.png"
+    ],
+    "resources": [],
+    "externalBin": [],
+    "copyright": "MIT",
+    "category": "Utilities",
+    "shortDescription": "Live Camera Widget",
+    "longDescription": "Receive live camera frames from Android via WebSocket and Tailscale"
+  }
+}

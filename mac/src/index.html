@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ORACLE - Live Camera</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #0f1724 0%, #1a2942 100%);
+            color: #e5e7eb;
+            overflow: hidden;
+        }
+
+        .container {
+            width: 100vw;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .card {
+            background: rgba(17, 24, 39, 0.9);
+            backdrop-filter: blur(20px);
+            border-radius: 16px;
+            border: 1px solid rgba(6, 182, 212, 0.2);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            padding: 30px;
+            max-width: 360px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #06b6d4;
+            margin-bottom: 8px;
+        }
+
+        .subtitle {
+            font-size: 14px;
+            color: #9ca3af;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #d1d5db;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input {
+            width: 100%;
+            padding: 12px;
+            background: rgba(255, 255, 255, 0.08);
+            border: 1px solid rgba(6, 182, 212, 0.3);
+            border-radius: 8px;
+            color: #e5e7eb;
+            font-size: 14px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            transition: all 0.3s ease;
+        }
+
+        input:focus {
+            outline: none;
+            background: rgba(255, 255, 255, 0.12);
+            border-color: #06b6d4;
+            box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.1);
+        }
+
+        input::placeholder {
+            color: #6b7280;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 24px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn-connect {
+            background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);
+            color: #082032;
+        }
+
+        .btn-connect:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(6, 182, 212, 0.3);
+        }
+
+        .btn-connect:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-disconnect {
+            background: rgba(255, 255, 255, 0.1);
+            color: #f87171;
+            border: 1px solid rgba(248, 113, 113, 0.3);
+        }
+
+        .btn-disconnect:hover {
+            background: rgba(248, 113, 113, 0.1);
+            border-color: rgba(248, 113, 113, 0.6);
+        }
+
+        .status {
+            margin-top: 20px;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            display: none;
+        }
+
+        .status.show {
+            display: block;
+        }
+
+        .status.success {
+            background: rgba(34, 197, 94, 0.15);
+            color: #86efac;
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .status.error {
+            background: rgba(248, 113, 113, 0.15);
+            color: #fca5a5;
+            border: 1px solid rgba(248, 113, 113, 0.3);
+        }
+
+        .status.info {
+            background: rgba(59, 130, 246, 0.15);
+            color: #93c5fd;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+        }
+
+        .stream-display {
+            margin-top: 20px;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #000;
+            border: 1px solid rgba(6, 182, 212, 0.2);
+            display: none;
+        }
+
+        .stream-display.show {
+            display: block;
+        }
+
+        .stream-display img {
+            width: 100%;
+            height: auto;
+            display: block;
+        }
+
+        .hint {
+            margin-top: 16px;
+            font-size: 12px;
+            color: #6b7280;
+            line-height: 1.6;
+        }
+
+        .hint code {
+            background: rgba(255, 255, 255, 0.08);
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #0f0;
+            font-family: 'Monaco', 'Menlo', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <div class="header">
+                <div class="logo">🎬</div>
+                <div class="title">ORACLE</div>
+                <div class="subtitle">Live Camera Widget</div>
+            </div>
+
+            <div id="connection-form">
+                <div class="form-group">
+                    <label for="ws-url">WebSocket Address</label>
+                    <input
+                        type="text"
+                        id="ws-url"
+                        placeholder="ws://100.x.x.x:8080"
+                    >
+                </div>
+
+                <div class="button-group">
+                    <button class="btn-connect" onclick="connectToStream()">Connect</button>
+                    <button class="btn-disconnect" onclick="disconnectFromStream()" style="display:none;" id="disconnect-btn">Disconnect</button>
+                </div>
+
+                <div id="status" class="status"></div>
+
+                <div class="hint">
+                    💡 Get the WebSocket address from your Android app's StreamScreen. It should be <code>ws://100.x.x.x:8080</code>
+                </div>
+            </div>
+
+            <div id="stream-display" class="stream-display">
+                <img id="frame-display" src="" alt="Live stream">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const wsInput = document.getElementById('ws-url');
+        const statusDiv = document.getElementById('status');
+        const connectBtn = document.querySelector('.btn-connect');
+        const disconnectBtn = document.getElementById('disconnect-btn');
+        const streamDisplay = document.getElementById('stream-display');
+        const frameDisplay = document.getElementById('frame-display');
+
+        async function connectToStream() {
+            const url = wsInput.value.trim();
+            if (!url) {
+                showStatus('Please enter a WebSocket address', 'error');
+                return;
+            }
+
+            connectBtn.disabled = true;
+            showStatus('Connecting...', 'info');
+
+            try {
+                // This would call the Tauri backend
+                // For now, simple WebSocket connection in browser
+                const ws = new WebSocket(url);
+
+                ws.onopen = () => {
+                    showStatus('✓ Connected! Receiving frames...', 'success');
+                    connectBtn.style.display = 'none';
+                    disconnectBtn.style.display = 'block';
+                    streamDisplay.classList.add('show');
+
+                    // Send ping to keep connection alive
+                    setInterval(() => {
+                        if (ws.readyState === WebSocket.OPEN) {
+                            ws.send(JSON.stringify({ type: 'ping' }));
+                        }
+                    }, 30000);
+                };
+
+                ws.onmessage = (event) => {
+                    try {
+                        const data = JSON.parse(event.data);
+                        if (data.type === 'frame' && data.base64) {
+                            frameDisplay.src = data.base64;
+                        }
+                    } catch (e) {
+                        // Might be raw base64
+                        frameDisplay.src = 'data:image/jpeg;base64,' + event.data;
+                    }
+                };
+
+                ws.onerror = (error) => {
+                    showStatus('✗ Connection error: ' + error, 'error');
+                    connectBtn.disabled = false;
+                };
+
+                ws.onclose = () => {
+                    showStatus('✗ Disconnected', 'error');
+                    connectBtn.style.display = 'block';
+                    disconnectBtn.style.display = 'none';
+                    streamDisplay.classList.remove('show');
+                    connectBtn.disabled = false;
+                };
+
+                // Store ws globally for disconnect
+                window.currentWs = ws;
+            } catch (error) {
+                showStatus('✗ Error: ' + error.message, 'error');
+                connectBtn.disabled = false;
+            }
+        }
+
+        function disconnectFromStream() {
+            if (window.currentWs) {
+                window.currentWs.close();
+                window.currentWs = null;
+            }
+            connectBtn.style.display = 'block';
+            disconnectBtn.style.display = 'none';
+            streamDisplay.classList.remove('show');
+            showStatus('Disconnected', 'info');
+        }
+
+        function showStatus(message, type) {
+            statusDiv.textContent = message;
+            statusDiv.className = `status show ${type}`;
+        }
+
+        // Load stored address
+        const savedUrl = localStorage.getItem('oracle-ws-url');
+        if (savedUrl) {
+            wsInput.value = savedUrl;
+        }
+
+        wsInput.addEventListener('blur', () => {
+            localStorage.setItem('oracle-ws-url', wsInput.value);
+        });
+    </script>
+</body>
+</html>
