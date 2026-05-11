@@ -1,43 +1,59 @@
 {
-  "productName": "ORACLE",
-  "version": "1.0.0",
-  "identifier": "com.oracle.camera",
   "build": {
-    "beforeDevCommand": "npm run dev",
-    "beforeBuildCommand": "npm run build",
+    "beforeDevCommand": "",
+    "beforeBuildCommand": "",
     "devPath": "../src",
-    "frontendDist": "../src"
+    "distDir": "../src",
+    "withGlobalTauri": false
   },
-  "app": {
+  "package": {
+    "productName": "Oracle",
+    "version": "1.0.0"
+  },
+  "tauri": {
+    "allowlist": {
+      "all": false,
+      "window": {
+        "all": true
+      }
+    },
+    "bundle": {
+      "active": true,
+      "category": "Utility",
+      "copyright": "",
+      "externalBin": [],
+      "icon": [],
+      "identifier": "com.oracle.streamer",
+      "longDescription": "Live camera relay from Android to macOS.",
+      "macOS": {
+        "entitlements": null,
+        "exceptionDomain": "",
+        "frameworks": [],
+        "providerShortName": null,
+        "signingIdentity": null
+      },
+      "resources": [],
+      "shortDescription": "Live camera relay",
+      "targets": "all"
+    },
+    "security": {
+      "csp": "default-src 'self' http: ws:; img-src 'self' http: data: blob:; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com"
+    },
+    "updater": {
+      "active": false
+    },
     "windows": [
       {
-        "title": "ORACLE - Live Camera",
-        "width": 400,
-        "height": 500,
-        "resizable": true,
         "fullscreen": false,
-        "alwaysOnTop": true
+        "height": 320,
+        "resizable": true,
+        "title": "Oracle",
+        "width": 380,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "transparent": true,
+        "skipTaskbar": false
       }
-    ],
-    "security": {
-      "csp": null
-    }
-  },
-  "bundle": {
-    "active": true,
-    "targets": ["dmg"],
-    "identifier": "com.oracle.camera",
-    "icon": [
-      "icons/32x32.png",
-      "icons/128x128.png",
-      "icons/256x256.png",
-      "icons/512x512.png"
-    ],
-    "resources": [],
-    "externalBin": [],
-    "copyright": "MIT",
-    "category": "Utilities",
-    "shortDescription": "Live Camera Widget",
-    "longDescription": "Receive live camera frames from Android via WebSocket and Tailscale"
+    ]
   }
 }

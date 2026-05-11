@@ -1,313 +1,135 @@
-# 🎬 ORACLE — Live Camera Widget
+# ORACLE
 
-**Lightweight, private, Tailscale-based live camera streaming.**
+> Live camera from your Android phone → macOS desktop.  
+> Local. Private. No cloud. No auth. No nonsense.
 
-Custom Android app that broadcasts JPEG frames. Custom Mac app that receives them. No cloud. No bloat. Just you, your devices, and your private network.
+**Mental model:** AirDrop for live camera presence.
 
 ---
 
 ## How It Works
 
 ```
-┌─────────────────────────────────────────────────┐
-│  Android (Expo)                                 │
-│  • Captures JPEG frames from camera             │
-│  • WebSocket SERVER on port 8080                │
-│  • Broadcasts to all connected Mac clients      │
-└────────────┬────────────────────────────────────┘
-             │
-        Tailscale VPN
-       (encrypted tunnel)
-             │
-┌────────────┴────────────────────────────────────┐
-│  macOS (Tauri)                                  │
-│  • WebSocket CLIENT (connects to 100.x.x.x)    │
-│  • Receives base64 JPEG frames                 │
-│  • Displays in floating widget                 │
-└─────────────────────────────────────────────────┘
+Android (CameraX) ──MJPEG──▶ Mac <img> tag
+                    direct TCP
+                   WiFi / Tailscale
 ```
 
----
-
-## Features
-
-✅ **Custom Android app** — No third-party IP webcam apps needed  
-✅ **Custom Mac app** — Lightweight Tauri-based receiver  
-✅ **Tailscale networking** — Encrypted private VPN  
-✅ **~10 FPS streaming** — New frame every ~100ms  
-✅ **Homebrew installable** — Easy Mac distribution  
-✅ **No backend servers** — Everything runs locally  
-✅ **Personal use** — 4-5 devices on your network
+The Android app runs an embedded MJPEG HTTP server. Your Mac (widget or app) opens it like any image URL. The browser handles the streaming protocol natively — no WebSocket, no base64, no relay server.
 
 ---
 
-## Quick Start (5 minutes)
-
-### Android Setup
-
-1. **Install Tailscale**
-   - Download from Play Store
-   - Sign in with your account
-   - Note your Tailscale IP (format: `100.x.x.x`)
-
-2. **Run the Expo app**
-   ```bash
-   cd mobile
-   npm install
-   npx expo start
-   ```
-   - Scan QR code with Expo Go
-   - Allow camera permissions
-   - Tap "Start Streaming"
-
-3. **Note the WebSocket address**
-   - App shows: `ws://100.x.x.x:8080`
-
-### macOS Setup
-
-1. **Install Tailscale** on Mac
-   - Download from https://tailscale.com/download
-   - Sign in
-
-2. **Install Mac app**
-   ```bash
-   brew install oracle-camera-widget
-   # or run: ./mac/target/release/oracle
-   ```
-
-3. **Connect to your Android device**
-   - Enter WebSocket address from step above
-   - Click "Connect"
-   - Stream appears in widget
-
----
-
-## 📚 Documentation Index
-
-| Document | For Whom | Purpose |
-|----------|----------|---------|
-| [QUICK_START.md](QUICK_START.md) | **First time?** | 10-minute setup guide |
-| [ARCHITECTURE.md](ARCHITECTURE.md) | **Want to understand the system?** | Technical design & protocol details |
-| [IMPLEMENTATION.md](IMPLEMENTATION.md) | **Developer working on WebSocket?** | Code examples & implementation guide |
-| [EXECUTION_PLAN.md](EXECUTION_PLAN.md) | **Ready to build?** | Step-by-step tasks (Priority 1-5) |
-| [DEVELOPMENT_SUMMARY.md](DEVELOPMENT_SUMMARY.md) | **Project manager?** | Complete status & timeline |
-
-**👉 Start here:** [QUICK_START.md](QUICK_START.md)
-
----
-
-## Technology Stack
-
-| Component | Tech | Why |
-|-----------|------|-----|
-| Android | Expo (React Native) | Fast development, camera support, Tailscale compatible |
-| Camera | expo-camera | JPEG compression, native frame rate control |
-| Streaming | WebSocket | Low latency, lightweight protocol |
-| Mac | Tauri | Lightweight, Homebrew-installable, minimal resources |
-| Networking | Tailscale | Encrypted, no port forwarding, works anywhere |
-
----
-
-## File Structure
+## Structure
 
 ```
 oracle/
-├── README.md                    (this file)
-├── QUICK_START.md              (5 minutes to working)
-├── ARCHITECTURE.md             (technical deep dive)
-├── IMPLEMENTATION.md           (developer guide for WebSocket)
-├── EXECUTION_PLAN.md           (what to do next)
-├── DEVELOPMENT_SUMMARY.md      (project status)
-├── mobile/
-│   ├── App.js                  (root component + navigation)
-│   ├── app.json                (Expo config, SDK 54)
-│   ├── package.json
-│   └── screens/
-│       ├── LoginScreen.js      (welcome + setup info)
-│       └── StreamScreen.js     (camera + WebSocket server)
-├── mac/
-│   ├── src/main.rs             (Tauri app entry)
-│   ├── src-tauri/              (Rust backend)
-│   ├── package.json
-│   └── tauri.conf.json
-└── packaging/
-    ├── homebrew_formula.rb     (Homebrew formula)
-    └── oracle-setup            (setup wizard)
+├── android/      Native Kotlin app — CameraX + MJPEG server
+├── mac/          Tauri macOS app — floating MJPEG viewer
+├── widget/       Übersicht widget — desktop live view
+│   └── oracle.widget/index.jsx
+└── config/
+    └── oracle.example.json
 ```
 
 ---
 
-## WebSocket Protocol
+## Quick Start
 
-### Connection
+### 1. Android app
 
-```
-ws://TAILSCALE_IP:8080
-```
+Open `android/` in Android Studio and run on your phone.
 
-Example: `ws://100.64.123.45:8080`
+- Tap **Start Streaming**
+- Note the stream URL shown on screen: `http://192.168.x.x:8080/stream`
+- Test immediately: open that URL in Chrome on your Mac → live video
 
-### Server → Client Messages (Android → Mac)
-
-```json
-{
-  "type": "frame",
-  "base64": "data:image/jpeg;base64,/9j/4AAQSkZJRgABA...",
-  "timestamp": 1699564800123,
-  "frameId": 1234
-}
-```
-
-### Client → Server Messages (Mac → Android)
-
-```json
-{
-  "type": "ping"
-}
-```
-
----
-
-## Streaming Performance
-
-- **Resolution**: 1280×720 (varies by device)
-- **Frame rate**: ~10 FPS (100ms per frame)
-- **JPEG quality**: 0.7 (70% compression)
-- **Bandwidth**: ~50-100 KB/s per client
-- **Latency**: 50-150ms (Tailscale VPN)
-- **CPU**: ~15% Android, ~5% macOS
-
----
-
-## Development
-
-### Android
+### 2. Übersicht widget (fastest path)
 
 ```bash
-cd mobile
+# Install Übersicht if you haven't
+brew install --cask ubersicht
 
-# Install dependencies
-npm install
+# Copy the widget
+cp -r widget/oracle.widget ~/Library/Application\ Support/Übersicht/widgets/
 
-# Start dev server
-npx expo start
+# Create config
+mkdir -p ~/.oracle
+cp config/oracle.example.json ~/.oracle/config.json
 
-# Scan QR with Expo Go on physical device
+# Edit config — put your phone's IP
+nano ~/.oracle/config.json
+# { "androidIP": "192.168.x.x", "port": 8080 }
 ```
 
-### macOS
+Widget appears on your desktop. Done.
+
+### 3. Mac app (optional — floating window)
 
 ```bash
 cd mac
-
-# Install Rust (one-time)
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-
-# Install dependencies
-npm install
-
-# Dev mode
-npm run tauri dev
-
-# Build release
-npm run tauri build
-# Output: src-tauri/target/release/oracle.app
+cargo tauri dev        # development
+cargo tauri build      # build .app
 ```
+
+Enter your phone's IP in the app and click Connect.
+
+---
+
+## Networking
+
+### Same WiFi (easiest)
+Phone and Mac on same network. Use the IP shown in the Android app.
+
+### Tailscale (across networks)
+1. Install Tailscale on both phone and Mac
+2. Use the Tailscale IP (starts with `100.`) in your config
+3. Works exactly the same — Tailscale handles the routing
+
+No ports to forward. No router config.
+
+---
+
+## Performance
+
+| Metric | Value |
+|---|---|
+| Latency (same WiFi) | 100–250ms |
+| Latency (Tailscale) | 150–400ms |
+| FPS | 15–20 FPS |
+| Frame size | ~50–80KB JPEG (720p, q=60) |
+| Bandwidth | ~8–12 Mbps |
+| Mac CPU (widget) | <1% |
+| Mac Memory (widget) | ~0MB extra |
+| Mac Memory (Tauri app) | ~40MB |
 
 ---
 
 ## Troubleshooting
 
-**WebSocket connection refused?**
-- Confirm Android app shows "Streaming: Active"
-- Check Tailscale IPs match (both should be 100.x.x.x)
-- Verify port 8080 accessible: `nc -zv 100.x.x.x 8080`
+**Stream URL shows `?` for IP**  
+→ Check WiFi is connected on the phone. Restart the app.
 
-**Frames look blurry/pixelated?**
-- Default JPEG quality is 0.7 to save bandwidth
-- Edit `StreamScreen.js` and increase `quality` value if needed
+**Mac can't reach the stream**  
+→ Confirm phone and Mac are on the same WiFi. Check Android firewall settings. Try the URL in Chrome first.
 
-**App crashes on camera access?**
-- Grant camera permissions in Android settings
-- Restart Expo Go
-- Check device has working camera
+**Low FPS**  
+→ Lower `JPEG_QUALITY` or `TARGET_HEIGHT` in `android/.../StreamConfig.kt`
 
-**Can't find Android in Tailscale?**
-- Both devices must be on same Tailscale account
-- Open Tailscale app and verify "Connected" status
-- Run `tailscale status` to see all devices
+**Tailscale not working**  
+→ Make sure both devices appear as "connected" in the Tailscale app.
 
 ---
 
-## Privacy & Security
+## Configuration
 
-✅ **Zero cloud** — Data never leaves your network  
-✅ **End-to-end encrypted** — Tailscale handles encryption  
-✅ **No authentication** — No servers, no accounts needed  
-✅ **No analytics** — No telemetry, no tracking  
-✅ **Open source** — Code is auditable
+`android/.../StreamConfig.kt` — port, JPEG quality, resolution  
+`~/.oracle/config.json` — Android IP (read by widget and Mac app)
 
 ---
 
-## Deployment
+## Roadmap
 
-### Build APK (Android)
-
-```bash
-cd mobile
-eas build --platform android --type apk
-```
-
-### Build DMG (macOS)
-
-```bash
-cd mac
-npm run tauri build
-# Output: src-tauri/target/release/bundle/dmg/oracle_x.x.x_x64.dmg
-```
-
-### Release via Homebrew
-
-Update `packaging/homebrew_formula.rb` with new version and SHA256, then:
-
-```bash
-brew tap username/tap
-brew install username/tap/oracle
-```
-
----
-
-## License
-
-MIT
-
-4. Install:
-```bash
-brew tap yourname/oracle
-brew install oracle-widget
-```
-
----
-
-## Why This Works
-
-| Feature | Complexity | Latency | Cost | Privacy |
-|---------|-----------|---------|------|---------|
-| Cloud servers | 🔴 High | 100-500ms | $$$ | ❌ Cloud |
-| Electron app | 🔴 High | <100ms | $0 | ✅ Local |
-| **IP Webcam + Tailscale** | 🟢 **None** | **<50ms** | **$0** | **✅ Encrypted** |
-
----
-
-## Components
-
-- [IP Webcam](https://play.google.com/store/apps/details?id=com.pas.webcam) — Android camera streaming
-- [Tailscale](https://tailscale.com) — Private VPN network (free)
-- [Übersicht](https://tracesof.net/uebersicht/) — macOS desktop widgets
-- Your widget — 20 lines of JavaScript
-
----
-
-## License
-
-MIT
+- [ ] mDNS auto-discovery (no manual IP entry)
+- [ ] WebSocket binary frames (sub-100ms latency if needed)
+- [ ] `brew install oracle` formula
+- [ ] macOS WidgetKit native widget (requires Swift + Developer account)
