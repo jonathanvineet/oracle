@@ -23,7 +23,7 @@ const DEFAULT_CONFIG = { androidIP: null, port: 8080 }
 const POSITION = {
   top:   '20px',
   right: '20px',
-  width: '340px',
+  width: '280px',
 }
 
 // ─── Übersicht hooks ──────────────────────────────────────────────────────────
@@ -50,15 +50,11 @@ export const style = `
   }
 
   .oracle-card {
-    background: rgba(15, 23, 36, 0.92);
+    background: #000;
     border: 1px solid rgba(6, 182, 212, 0.25);
-    border-radius: 14px;
+    border-radius: 12px;
     overflow: hidden;
-    box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.5),
-      0 0 0 1px rgba(255, 255, 255, 0.04) inset;
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8);
   }
 
   .oracle-header {

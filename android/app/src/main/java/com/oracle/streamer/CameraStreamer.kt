@@ -15,9 +15,8 @@ import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import java.io.ByteArrayOutputStream
-import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * CameraStreamer — connects CameraX to the MjpegServer.
@@ -37,29 +36,26 @@ class CameraStreamer(
     private val mjpegServer = MjpegServer()
     // Single thread for encoding — prevents CPU thrashing
     private val analysisExecutor = Executors.newSingleThreadExecutor()
-    // Bounded queue: max 2 frames waiting to send. Older frames dropped if queue full.
-    // This keeps lag <70ms even if network is slow.
-    private val frameQueue = ArrayBlockingQueue<ByteArray>(2)
-    private val serverThread = Thread { frameQueueWorker() }.apply { isDaemon = true }
+    // Atomic reference to LATEST frame only — no queue, no historical latency
+    // When encoder reads it, it gets current frame. Old frames immediately garbage collected.
+    private val latestFrame = AtomicReference<ByteArray>(null)
+    private val serverThread = Thread { frameStreamWorker() }.apply { isDaemon = true }
     private var isRunning = false
 
     private var lastFpsUpdate = System.currentTimeMillis()
     private var frameCountSinceUpdate = 0
     
     // Frame skipping: target 30fps exactly
-    // Most phones run at 30fps camera, so FRAME_SKIP=0 means we process all frames → 30fps
-    // If camera runs faster, increase FRAME_SKIP to throttle
     private var frameCounter = 0
-    private val frameSkip = 0  // 0 = no skipping; adjust if camera delivers >30fps
+    private val frameSkip = 0  // 0 = no skipping
 
-    private fun frameQueueWorker() {
+    private fun frameStreamWorker() {
         while (isRunning) {
-            try {
-                // Block until a frame is available (no busy-wait)
-                val jpegBytes = frameQueue.take()
-                mjpegServer.pushFrame(jpegBytes)
-            } catch (_: InterruptedException) {
-                break
+            val frame = latestFrame.getAndSet(null)  // Get latest, clear it
+            if (frame != null) {
+                mjpegServer.pushFrame(frame)
+            } else {
+                Thread.sleep(10)  // No frame yet, wait briefly
             }
         }
     }
@@ -118,15 +114,12 @@ class CameraStreamer(
                 return
             }
             
-            // JPEG compression on analyzer thread (not blocking camera)
+            // JPEG compression on analyzer thread
             val jpegBytes = proxy.toJpeg(StreamConfig.JPEG_QUALITY)
             
-            // Non-blocking queue: if queue is full (server can't keep pace),
-            // discard the oldest queued frame and add this one (drop oldest, not newest)
-            if (frameQueue.remainingCapacity() == 0) {
-                frameQueue.poll()  // Drop oldest frame to make room
-            }
-            frameQueue.offer(jpegBytes)
+            // Atomic reference — overwrites stale frame, no queueing
+            // Server thread picks up latest whenever ready
+            latestFrame.set(jpegBytes)
 
             // FPS counter — update every second
             frameCountSinceUpdate++
