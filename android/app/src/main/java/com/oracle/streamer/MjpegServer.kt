@@ -39,9 +39,11 @@ class MjpegServer {
     fun start() {
         serverJob = CoroutineScope(Dispatchers.IO).launch {
             try {
-                val ss = ServerSocket(StreamConfig.PORT)
+                val bindIP = getTailscaleIP() ?: "0.0.0.0"  // Tailscale if available, else all interfaces
+                val ss = ServerSocket(StreamConfig.PORT, 50, java.net.InetAddress.getByName(bindIP))
                 serverSocket = ss
-                Log.i(TAG, "MJPEG server listening on :${StreamConfig.PORT}")
+                val displayIP = if (bindIP != "0.0.0.0") "🔗 $bindIP (Tailnet)" else "0.0.0.0"
+                Log.i(TAG, "MJPEG server listening on $displayIP:${StreamConfig.PORT}")
 
                 while (isActive) {
                     val socket = try {
@@ -55,6 +57,22 @@ class MjpegServer {
                 Log.e(TAG, "Server error: ${e.message}")
             }
         }
+    }
+
+    private fun getTailscaleIP(): String? {
+        try {
+            java.net.NetworkInterface.getNetworkInterfaces()?.toList()?.forEach { iface ->
+                if (iface.name.contains("tun", ignoreCase = true)) {
+                    iface.inetAddresses.toList().forEach { addr ->
+                        val hostAddr = addr.hostAddress ?: return@forEach
+                        if (hostAddr.startsWith("100.") && addr is java.net.Inet4Address) {
+                            return hostAddr
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+        return null
     }
 
     private suspend fun handleClient(socket: Socket) = withContext(Dispatchers.IO) {

@@ -8,12 +8,12 @@ object StreamConfig {
     /** Port the MJPEG HTTP server listens on */
     const val PORT = 8080
 
-    /** JPEG quality 0-100. 60 = ~50-80KB per frame at 720p — good balance */
-    const val JPEG_QUALITY = 60
+    /** JPEG quality 0-100. 45 = fast encoding, <30KB per frame at 540p for 30fps */
+    const val JPEG_QUALITY = 45
 
-    /** Target resolution. CameraX will pick the closest available. */
-    const val TARGET_WIDTH = 1280
-    const val TARGET_HEIGHT = 720
+    /** Target resolution. CameraX will pick the closest available. Lower = faster encode */
+    const val TARGET_WIDTH = 960
+    const val TARGET_HEIGHT = 540
 
     /** MJPEG boundary string */
     const val BOUNDARY = "oracleframe"

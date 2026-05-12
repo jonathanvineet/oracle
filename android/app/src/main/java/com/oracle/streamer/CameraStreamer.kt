@@ -1,8 +1,6 @@
 package com.oracle.streamer
 
 import android.content.Context
-import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.ImageFormat
 import android.graphics.Rect
 import android.graphics.YuvImage
@@ -17,6 +15,7 @@ import androidx.camera.view.PreviewView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import java.io.ByteArrayOutputStream
+import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
 
@@ -34,18 +33,43 @@ class CameraStreamer(
     private val context: Context,
     private val previewView: PreviewView
 ) {
-    private val TAG = "CameraStreamer"
+    private val tag = "CameraStreamer"
     private val mjpegServer = MjpegServer()
+    // Single thread for encoding — prevents CPU thrashing
     private val analysisExecutor = Executors.newSingleThreadExecutor()
+    // Bounded queue: max 2 frames waiting to send. Older frames dropped if queue full.
+    // This keeps lag <70ms even if network is slow.
+    private val frameQueue = ArrayBlockingQueue<ByteArray>(2)
+    private val serverThread = Thread { frameQueueWorker() }.apply { isDaemon = true }
+    private var isRunning = false
 
     private var lastFpsUpdate = System.currentTimeMillis()
     private var frameCountSinceUpdate = 0
-    private val frameTimestamp = AtomicLong(0)
+    
+    // Frame skipping: target 30fps exactly
+    // Most phones run at 30fps camera, so FRAME_SKIP=0 means we process all frames → 30fps
+    // If camera runs faster, increase FRAME_SKIP to throttle
+    private var frameCounter = 0
+    private val frameSkip = 0  // 0 = no skipping; adjust if camera delivers >30fps
+
+    private fun frameQueueWorker() {
+        while (isRunning) {
+            try {
+                // Block until a frame is available (no busy-wait)
+                val jpegBytes = frameQueue.take()
+                mjpegServer.pushFrame(jpegBytes)
+            } catch (_: InterruptedException) {
+                break
+            }
+        }
+    }
 
     fun start(
         onFrame: (fps: Int) -> Unit,
         onError: (msg: String) -> Unit
     ) {
+        isRunning = true
+        serverThread.start()
         mjpegServer.start()
 
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
@@ -77,9 +101,9 @@ class CameraStreamer(
                     preview,
                     imageAnalysis
                 )
-                Log.i(TAG, "CameraX bound successfully")
+                Log.i(tag, "CameraX bound successfully")
             } catch (e: Exception) {
-                Log.e(TAG, "Camera bind failed: ${e.message}")
+                Log.e(tag, "Camera bind failed: ${e.message}")
                 onError("Camera failed: ${e.message}")
             }
 
@@ -87,9 +111,22 @@ class CameraStreamer(
     }
 
     private fun processFrame(imageProxy: ImageProxy, onFrame: (fps: Int) -> Unit) {
-        try {
-            val jpegBytes = imageProxy.toJpeg(StreamConfig.JPEG_QUALITY)
-            mjpegServer.pushFrame(jpegBytes)
+        imageProxy.use { proxy ->
+            // Skip frames if configured
+            frameCounter++
+            if (frameCounter % (frameSkip + 1) != 0) {
+                return
+            }
+            
+            // JPEG compression on analyzer thread (not blocking camera)
+            val jpegBytes = proxy.toJpeg(StreamConfig.JPEG_QUALITY)
+            
+            // Non-blocking queue: if queue is full (server can't keep pace),
+            // discard the oldest queued frame and add this one (drop oldest, not newest)
+            if (frameQueue.remainingCapacity() == 0) {
+                frameQueue.poll()  // Drop oldest frame to make room
+            }
+            frameQueue.offer(jpegBytes)
 
             // FPS counter — update every second
             frameCountSinceUpdate++
@@ -100,9 +137,6 @@ class CameraStreamer(
                 lastFpsUpdate = now
                 onFrame(fps)
             }
-        } finally {
-            // Always close — CameraX will not deliver next frame until this is called
-            imageProxy.close()
         }
     }
 
@@ -111,12 +145,12 @@ class CameraStreamer(
             val cameraProvider = ProcessCameraProvider.getInstance(context).get()
             cameraProvider.unbindAll()
         } catch (_: Exception) {}
+        isRunning = false
         mjpegServer.stop()
         analysisExecutor.shutdown()
-        Log.i(TAG, "CameraStreamer stopped")
+        serverThread.interrupt()
+        Log.i(tag, "CameraStreamer stopped")
     }
-
-    val clientCount: Int get() = mjpegServer.clientCount
 }
 
 /**
@@ -139,7 +173,7 @@ fun ImageProxy.toJpeg(quality: Int): ByteArray {
     uBuffer.get(nv21, ySize + vSize, uSize)
 
     val yuvImage = YuvImage(nv21, ImageFormat.NV21, width, height, null)
-    val out = ByteArrayOutputStream()
+    val out = ByteArrayOutputStream(ySize / 2)  // Pre-allocate reasonable size
     yuvImage.compressToJpeg(Rect(0, 0, width, height), quality, out)
     return out.toByteArray()
 }

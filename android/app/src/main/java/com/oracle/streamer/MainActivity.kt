@@ -109,14 +109,42 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun detectAndShowIP() {
-        val ip = getLocalIP()
+        val tailscaleIP = getTailscaleIP()
+        val localIP = if (tailscaleIP != null) tailscaleIP else getLocalIP()
         val port = StreamConfig.PORT
-        binding.tvStreamUrl.text = "http://$ip:$port/stream"
+        val isTailscale = tailscaleIP != null
+        
+        val displayText = if (isTailscale) {
+            "🔗 Tailnet: http://$localIP:$port/stream"
+        } else {
+            "Local: http://$localIP:$port/stream"
+        }
+        
+        binding.tvStreamUrl.text = displayText
         binding.tvStreamUrl.setOnClickListener {
             val clipboard = getSystemService(CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("url", "http://$ip:$port/stream"))
+            val url = "http://$localIP:$port/stream"
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("url", url))
             Toast.makeText(this, "URL copied!", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun getTailscaleIP(): String? {
+        try {
+            NetworkInterface.getNetworkInterfaces()?.toList()?.forEach { iface ->
+                // Tailscale typically uses tun interfaces on Android
+                if (iface.name.contains("tun", ignoreCase = true)) {
+                    iface.inetAddresses.toList().forEach { addr ->
+                        val hostAddr = addr.hostAddress ?: return@forEach
+                        // Tailscale IPs are in 100.64.0.0/10 range
+                        if (hostAddr.startsWith("100.") && addr is java.net.Inet4Address) {
+                            return hostAddr
+                        }
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+        return null
     }
 
     private fun getLocalIP(): String {
