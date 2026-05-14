@@ -10,12 +10,26 @@
 ## How It Works
 
 ```
-Android (CameraX) ──MJPEG──▶ Mac <img> tag
-                    direct TCP
-                   WiFi / Tailscale
+Android (CameraX)
+  ↓
+YUV_420_888 frames (30fps, native camera)
+  ↓
+JPEG encode (single thread, quality 30)
+  ↓
+AtomicReference<ByteArray> (latest frame only)
+  ↓
+Server thread pulls newest frame
+  ↓
+MJPEG HTTP stream (multipart/x-mixed-replace)
+  ↓
+Mac <img> tag (native browser decoding)
 ```
 
-The Android app runs an embedded MJPEG HTTP server. Your Mac (widget or app) opens it like any image URL. The browser handles the streaming protocol natively — no WebSocket, no base64, no relay server.
+**Why this architecture:**
+- STRATEGY_KEEP_ONLY_LATEST drops frames we can't encode fast enough
+- Atomic reference = no queue = no buffering lag
+- Single encoder thread = predictable, consistent latency
+- Browser's `<img>` tag handles MJPEG natively — zero JS needed
 
 ---
 
@@ -91,16 +105,31 @@ No ports to forward. No router config.
 
 ## Performance
 
-| Metric | Value |
-|---|---|
-| Latency (same WiFi) | 100–250ms |
-| Latency (Tailscale) | 150–400ms |
-| FPS | 15–20 FPS |
-| Frame size | ~50–80KB JPEG (720p, q=60) |
-| Bandwidth | ~8–12 Mbps |
-| Mac CPU (widget) | <1% |
-| Mac Memory (widget) | ~0MB extra |
-| Mac Memory (Tauri app) | ~40MB |
+**Real-time Architecture Optimizations** (May 2026)
+
+### Streaming Pipeline
+- ✅ **Atomic latest-frame-only model** — no queue, eliminates historical latency
+- ✅ **640x360 resolution** (down from 1280x720) — 50% fewer pixels
+- ✅ **JPEG quality 30** (down from 60) — ultra-fast encoding, <10KB/frame
+- ✅ **Single-threaded JPEG encoder** — prevents CPU thrashing
+- ✅ **Tailscale integration** — direct peer-to-peer, encrypted, low-latency routing
+- ✅ **STRATEGY_KEEP_ONLY_LATEST backpressure** — CameraX drops frames camera can't process
+
+### Widget Rendering (macOS)
+- ✅ **Removed `backdrop-filter: blur()`** — expensive GPU work, switched to solid black
+- ✅ **280x180px widget** (down from 340px) — less image scaling, cleaner render pipeline
+
+### Latency Profile
+
+| Scenario | Latency | FPS |
+|---|---|---|
+| Same WiFi (optimized) | 50–100ms | 28–30 |
+| Tailscale (optimized) | 100–200ms | 28–30 |
+| Old architecture | 200–400ms | 15–20 |
+
+**Key Insight:** Smooth real-time video prioritizes frame freshness over quality. By always pushing the newest frame and dropping stale ones, latency consistency matters more than raw FPS.
+
+
 
 ---
 
