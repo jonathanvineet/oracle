@@ -151,19 +151,40 @@ class CameraStreamer(
  * Uses Android's built-in YuvImage — no external library needed.
  */
 fun ImageProxy.toJpeg(quality: Int): ByteArray {
-    val yBuffer = planes[0].buffer
-    val uBuffer = planes[1].buffer
-    val vBuffer = planes[2].buffer
+    val yPlane = planes[0]
+    val uPlane = planes[1]
+    val vPlane = planes[2]
 
-    val ySize = yBuffer.remaining()
-    val uSize = uBuffer.remaining()
-    val vSize = vBuffer.remaining()
+    val yBuffer = yPlane.buffer
+    val uBuffer = uPlane.buffer
+    val vBuffer = vPlane.buffer
 
-    // Reconstruct NV21 byte array (YUV format that YuvImage accepts)
-    val nv21 = ByteArray(ySize + uSize + vSize)
-    yBuffer.get(nv21, 0, ySize)
-    vBuffer.get(nv21, ySize, vSize)
-    uBuffer.get(nv21, ySize + vSize, uSize)
+    val ySize = width * height
+    val chromaSize = width * height / 2
+
+    // Reconstruct a tightly packed NV21 buffer from CameraX's YUV_420_888 planes.
+    // CameraX planes often contain row padding and chroma pixelStride > 1, so we
+    // must copy row-by-row instead of assuming the buffers are already contiguous.
+    val nv21 = ByteArray(ySize + chromaSize)
+
+    var outputOffset = 0
+    for (row in 0 until height) {
+        val rowStart = row * yPlane.rowStride
+        for (col in 0 until width) {
+            nv21[outputOffset++] = yBuffer.get(rowStart + col * yPlane.pixelStride)
+        }
+    }
+
+    val chromaHeight = height / 2
+    val chromaWidth = width / 2
+    for (row in 0 until chromaHeight) {
+        val uRowStart = row * uPlane.rowStride
+        val vRowStart = row * vPlane.rowStride
+        for (col in 0 until chromaWidth) {
+            nv21[outputOffset++] = vBuffer.get(vRowStart + col * vPlane.pixelStride)
+            nv21[outputOffset++] = uBuffer.get(uRowStart + col * uPlane.pixelStride)
+        }
+    }
 
     val yuvImage = YuvImage(nv21, ImageFormat.NV21, width, height, null)
     val out = ByteArrayOutputStream(ySize / 2)  // Pre-allocate reasonable size
