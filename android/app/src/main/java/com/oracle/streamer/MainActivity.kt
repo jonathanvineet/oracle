@@ -6,6 +6,7 @@ import android.net.wifi.WifiManager
 import android.os.Bundle
 import android.os.PowerManager
 import android.view.View
+import android.widget.SeekBar
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.camera.view.PreviewView
@@ -18,11 +19,13 @@ class MainActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var cameraStreamer: CameraStreamer
+    private lateinit var printerController: PrinterController
     private lateinit var wakeLock: PowerManager.WakeLock
     private var isStreaming = false
 
     companion object {
         private const val REQUEST_CAMERA = 100
+        private const val REQUEST_USB = 101
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -35,6 +38,10 @@ class MainActivity : AppCompatActivity() {
         wakeLock = pm.newWakeLock(PowerManager.SCREEN_DIM_WAKE_LOCK, "oracle:streaming")
 
         cameraStreamer = CameraStreamer(this, binding.cameraPreview)
+
+        // Initialize printer controller
+        printerController = PrinterController(UsbSerialManager(this))
+        setupPrinterUI()
 
         updateUI(streaming = false)
         detectAndShowIP()
@@ -164,5 +171,115 @@ class MainActivity : AppCompatActivity() {
     override fun onDestroy() {
         super.onDestroy()
         stopStreaming()
+        printerController.close()
     }
+
+    /**
+     * Setup all printer console UI controls and listeners.
+     */
+    private fun setupPrinterUI() {
+        // Connect button
+        binding.btnConnectPrinter.setOnClickListener {
+            printerController.connect { success, msg ->
+                runOnUiThread {
+                    if (success) {
+                        Toast.makeText(this, "Printer connected", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+        }
+
+        // Preheat buttons
+        binding.btnPLA.setOnClickListener { printerController.preheatPLA() }
+        binding.btnPLAPlus.setOnClickListener { printerController.preheatPLAPlus() }
+        binding.btnPETG.setOnClickListener { printerController.preheatPETG() }
+        binding.btnABS.setOnClickListener { printerController.preheatABS() }
+        binding.btnTPU.setOnClickListener { printerController.preheatTPU() }
+
+        // Motion controls
+        binding.btnHomeAll.setOnClickListener { printerController.homeAll() }
+        binding.btnXPlus.setOnClickListener { printerController.moveX(1f, relative = true) }
+        binding.btnXMinus.setOnClickListener { printerController.moveX(-1f, relative = true) }
+        binding.btnYPlus.setOnClickListener { printerController.moveY(1f, relative = true) }
+        binding.btnYMinus.setOnClickListener { printerController.moveY(-1f, relative = true) }
+        binding.btnZPlus.setOnClickListener { printerController.moveZ(1f, relative = true) }
+        binding.btnZMinus.setOnClickListener { printerController.moveZ(-1f, relative = true) }
+        binding.btnDisableSteppers.setOnClickListener { printerController.disableSteppers() }
+        binding.btnEmergencyStop.setOnClickListener { printerController.emergencyStop() }
+
+        // Sliders
+        binding.sliderFan.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                if (fromUser) printerController.setFanPercent(progress)
+                binding.tvFanValue.text = "$progress%"
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar) {}
+        })
+
+        binding.sliderFeedrate.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                if (fromUser) printerController.setFeedrate(progress)
+                binding.tvFeedrateValue.text = "$progress%"
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar) {}
+        })
+
+        binding.sliderFlow.setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+            override fun onProgressChanged(seekBar: SeekBar, progress: Int, fromUser: Boolean) {
+                if (fromUser) printerController.setFlow(progress)
+                binding.tvFlowValue.text = "$progress%"
+            }
+            override fun onStartTrackingTouch(seekBar: SeekBar) {}
+            override fun onStopTrackingTouch(seekBar: SeekBar) {}
+        })
+
+        // Listen to state changes
+        printerController.addListener(object : PrinterController.StateListener {
+            override fun onStateChanged(newState: PrinterState) {
+                runOnUiThread { updatePrinterUI(newState) }
+            }
+        })
+    }
+
+    /**
+     * Update printer UI with current state.
+     */
+    private fun updatePrinterUI(state: PrinterState) {
+        // Connection status
+        if (state.connected) {
+            binding.printerStatusDot.setBackgroundResource(R.drawable.dot_green)
+            binding.tvPrinterStatus.text = "Connected"
+            binding.tvPrinterStatus.setTextColor(0xFF34D399.toInt())
+            binding.btnConnectPrinter.text = "✓ Connected"
+        } else {
+            binding.printerStatusDot.setBackgroundResource(R.drawable.dot_red)
+            binding.tvPrinterStatus.text = "Disconnected"
+            binding.tvPrinterStatus.setTextColor(0xFFF87171.toInt())
+            binding.btnConnectPrinter.text = "⚡ Connect Printer"
+        }
+
+        // Firmware
+        if (state.firmware.isNotEmpty()) {
+            binding.tvFirmware.text = state.firmware.take(30)
+        }
+
+        // Temperatures
+        binding.tvNozzleTemp.text = String.format("%.0f°C", state.nozzleTemp)
+        binding.tvNozzleTarget.text = String.format("→%.0f", state.nozzleTarget)
+        binding.tvBedTemp.text = String.format("%.0f°C", state.bedTemp)
+        binding.tvBedTarget.text = String.format("→%.0f", state.bedTarget)
+
+        // Position
+        binding.tvPositionX.text = String.format("%.2f", state.x)
+        binding.tvPositionY.text = String.format("%.2f", state.y)
+        binding.tvPositionZ.text = String.format("%.2f", state.z)
+
+        // Status
+        binding.tvLastMessage.text = state.lastMessage
+    }
+
 }

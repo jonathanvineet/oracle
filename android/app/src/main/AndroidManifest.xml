@@ -9,6 +9,8 @@
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <!-- Keep CPU alive while streaming -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- USB serial communication for 3D printer -->
+    <uses-permission android:name="android.permission.USB_PERMISSION" />
 
     <uses-feature android:name="android.hardware.camera" android:required="true" />
 

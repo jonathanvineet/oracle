@@ -197,7 +197,635 @@
             android:textSize="13sp"
             android:lineSpacingMultiplier="1.5"
             android:background="@drawable/bg_card"
-            android:padding="16dp" />
+            android:padding="16dp"
+            android:layout_marginBottom="20dp" />
+
+        <!-- PRINTER CONSOLE SECTION -->
+
+        <!-- Connection Status Card -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_card"
+            android:padding="16dp"
+            android:layout_marginBottom="12dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="🖨 PRINTER"
+                android:textColor="#EC4899"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:letterSpacing="0.08"
+                android:layout_marginBottom="12dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="8dp">
+
+                <View
+                    android:id="@+id/printerStatusDot"
+                    android:layout_width="10dp"
+                    android:layout_height="10dp"
+                    android:background="@drawable/dot_red"
+                    android:layout_marginEnd="8dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Connection:"
+                    android:textColor="#9CA3AF"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/tvPrinterStatus"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="Disconnected"
+                    android:textColor="#F87171"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:gravity="end" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center_vertical"
+                android:layout_marginBottom="8dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Firmware:"
+                    android:textColor="#9CA3AF"
+                    android:textSize="12sp" />
+
+                <TextView
+                    android:id="@+id/tvFirmware"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="—"
+                    android:textColor="#06B6D4"
+                    android:textSize="11sp"
+                    android:fontFamily="monospace"
+                    android:gravity="end" />
+            </LinearLayout>
+
+            <Button
+                android:id="@+id/btnConnectPrinter"
+                android:layout_width="match_parent"
+                android:layout_height="44dp"
+                android:text="⚡ Connect Printer"
+                android:textColor="#FFFFFF"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                android:background="@drawable/bg_btn_cyan" />
+        </LinearLayout>
+
+        <!-- Temperature Panel -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="12dp"
+            android:weightSum="2">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:background="@drawable/bg_card"
+                android:padding="14dp"
+                android:layout_marginEnd="6dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="NOZZLE"
+                    android:textColor="#6B7280"
+                    android:textSize="10sp"
+                    android:letterSpacing="0.08"
+                    android:layout_marginBottom="6dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:id="@+id/tvNozzleTemp"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="—°C"
+                        android:textColor="#EC4899"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:fontFamily="monospace" />
+
+                    <TextView
+                        android:id="@+id/tvNozzleTarget"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="→—"
+                        android:textColor="#9CA3AF"
+                        android:textSize="12sp"
+                        android:fontFamily="monospace" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:background="@drawable/bg_card"
+                android:padding="14dp"
+                android:layout_marginStart="6dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="BED"
+                    android:textColor="#6B7280"
+                    android:textSize="10sp"
+                    android:letterSpacing="0.08"
+                    android:layout_marginBottom="6dp" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal"
+                    android:gravity="center_vertical">
+
+                    <TextView
+                        android:id="@+id/tvBedTemp"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="—°C"
+                        android:textColor="#EC4899"
+                        android:textSize="18sp"
+                        android:textStyle="bold"
+                        android:fontFamily="monospace" />
+
+                    <TextView
+                        android:id="@+id/tvBedTarget"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="→—"
+                        android:textColor="#9CA3AF"
+                        android:textSize="12sp"
+                        android:fontFamily="monospace" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Preheat Presets -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="12dp"
+            android:weightSum="5">
+
+            <Button
+                android:id="@+id/btnPLA"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:text="PLA"
+                android:textSize="11sp"
+                android:background="@drawable/bg_btn_cyan"
+                android:layout_marginEnd="2dp" />
+
+            <Button
+                android:id="@+id/btnPLAPlus"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:text="PLA+"
+                android:textSize="11sp"
+                android:background="@drawable/bg_btn_cyan"
+                android:layout_marginHorizontal="2dp" />
+
+            <Button
+                android:id="@+id/btnPETG"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:text="PETG"
+                android:textSize="11sp"
+                android:background="@drawable/bg_btn_cyan"
+                android:layout_marginHorizontal="2dp" />
+
+            <Button
+                android:id="@+id/btnABS"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:text="ABS"
+                android:textSize="11sp"
+                android:background="@drawable/bg_btn_cyan"
+                android:layout_marginHorizontal="2dp" />
+
+            <Button
+                android:id="@+id/btnTPU"
+                android:layout_width="0dp"
+                android:layout_height="36dp"
+                android:layout_weight="1"
+                android:text="TPU"
+                android:textSize="11sp"
+                android:background="@drawable/bg_btn_cyan"
+                android:layout_marginStart="2dp" />
+        </LinearLayout>
+
+        <!-- Motion Controls -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_card"
+            android:padding="12dp"
+            android:layout_marginBottom="12dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="MOTION"
+                android:textColor="#6B7280"
+                android:textSize="10sp"
+                android:letterSpacing="0.08"
+                android:layout_marginBottom="8dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="8dp"
+                android:weightSum="3">
+
+                <Button
+                    android:id="@+id/btnHomeAll"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:text="Home All"
+                    android:textSize="11sp"
+                    android:background="@drawable/bg_btn_cyan"
+                    android:layout_marginEnd="4dp" />
+
+                <Button
+                    android:id="@+id/btnDisableSteppers"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:text="Disable"
+                    android:textSize="11sp"
+                    android:background="@drawable/bg_btn_cyan"
+                    android:layout_marginHorizontal="4dp" />
+
+                <Button
+                    android:id="@+id/btnEmergencyStop"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:text="⚠ E-STOP"
+                    android:textSize="11sp"
+                    android:textStyle="bold"
+                    android:background="#DC2626"
+                    android:textColor="#FFFFFF"
+                    android:layout_marginStart="4dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:layout_marginBottom="8dp">
+
+                <Button
+                    android:id="@+id/btnYPlus"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:text="⬆"
+                    android:textSize="16sp"
+                    android:background="@drawable/bg_btn_cyan"
+                    android:layout_marginBottom="4dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:layout_marginBottom="8dp"
+                android:weightSum="3">
+
+                <Button
+                    android:id="@+id/btnXMinus"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:text="⬅"
+                    android:textSize="16sp"
+                    android:background="@drawable/bg_btn_cyan"
+                    android:layout_marginEnd="4dp" />
+
+                <Button
+                    android:id="@+id/btnZPlus"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:text="⬆Z"
+                    android:textSize="13sp"
+                    android:background="@drawable/bg_btn_cyan"
+                    android:layout_marginHorizontal="4dp" />
+
+                <Button
+                    android:id="@+id/btnXPlus"
+                    android:layout_width="0dp"
+                    android:layout_height="40dp"
+                    android:layout_weight="1"
+                    android:text="➡"
+                    android:textSize="16sp"
+                    android:background="@drawable/bg_btn_cyan"
+                    android:layout_marginStart="4dp" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center">
+
+                <Button
+                    android:id="@+id/btnYMinus"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:text="⬇"
+                    android:textSize="16sp"
+                    android:background="@drawable/bg_btn_cyan"
+                    android:layout_marginTop="4dp" />
+            </LinearLayout>
+
+            <!-- Z Minus below the main grid -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:gravity="center"
+                android:layout_marginTop="4dp">
+
+                <Button
+                    android:id="@+id/btnZMinus"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:text="⬇Z"
+                    android:textSize="13sp"
+                    android:background="@drawable/bg_btn_cyan" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Position & Status -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="@drawable/bg_card"
+            android:padding="12dp"
+            android:layout_marginBottom="12dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="POSITION"
+                android:textColor="#6B7280"
+                android:textSize="10sp"
+                android:letterSpacing="0.08"
+                android:layout_marginBottom="8dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="4dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="X:"
+                    android:textColor="#9CA3AF"
+                    android:textSize="11sp"
+                    android:layout_marginEnd="4dp" />
+
+                <TextView
+                    android:id="@+id/tvPositionX"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="0.33"
+                    android:text="—"
+                    android:textColor="#06B6D4"
+                    android:textSize="11sp"
+                    android:fontFamily="monospace"
+                    android:layout_marginEnd="12dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Y:"
+                    android:textColor="#9CA3AF"
+                    android:textSize="11sp"
+                    android:layout_marginEnd="4dp" />
+
+                <TextView
+                    android:id="@+id/tvPositionY"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="0.33"
+                    android:text="—"
+                    android:textColor="#06B6D4"
+                    android:textSize="11sp"
+                    android:fontFamily="monospace"
+                    android:layout_marginEnd="12dp" />
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Z:"
+                    android:textColor="#9CA3AF"
+                    android:textSize="11sp"
+                    android:layout_marginEnd="4dp" />
+
+                <TextView
+                    android:id="@+id/tvPositionZ"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="0.33"
+                    android:text="—"
+                    android:textColor="#06B6D4"
+                    android:textSize="11sp"
+                    android:fontFamily="monospace" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="Last:"
+                    android:textColor="#9CA3AF"
+                    android:textSize="10sp"
+                    android:layout_marginEnd="4dp" />
+
+                <TextView
+                    android:id="@+id/tvLastMessage"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="—"
+                    android:textColor="#6B7280"
+                    android:textSize="10sp"
+                    android:fontFamily="monospace"
+                    android:maxLines="1"
+                    android:ellipsize="end" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Fan & Speed -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginBottom="16dp"
+            android:weightSum="3">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:background="@drawable/bg_card"
+                android:padding="12dp"
+                android:layout_marginEnd="6dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="FAN"
+                    android:textColor="#6B7280"
+                    android:textSize="9sp"
+                    android:letterSpacing="0.08"
+                    android:layout_marginBottom="4dp" />
+
+                <SeekBar
+                    android:id="@+id/sliderFan"
+                    android:layout_width="match_parent"
+                    android:layout_height="24dp"
+                    android:max="100"
+                    android:progress="0"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    android:id="@+id/tvFanValue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="0%"
+                    android:textColor="#06B6D4"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:fontFamily="monospace" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:background="@drawable/bg_card"
+                android:padding="12dp"
+                android:layout_marginHorizontal="6dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="FEED"
+                    android:textColor="#6B7280"
+                    android:textSize="9sp"
+                    android:letterSpacing="0.08"
+                    android:layout_marginBottom="4dp" />
+
+                <SeekBar
+                    android:id="@+id/sliderFeedrate"
+                    android:layout_width="match_parent"
+                    android:layout_height="24dp"
+                    android:max="200"
+                    android:progress="100"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    android:id="@+id/tvFeedrateValue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="100%"
+                    android:textColor="#06B6D4"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:fontFamily="monospace" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:background="@drawable/bg_card"
+                android:padding="12dp"
+                android:layout_marginStart="6dp">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="FLOW"
+                    android:textColor="#6B7280"
+                    android:textSize="9sp"
+                    android:letterSpacing="0.08"
+                    android:layout_marginBottom="4dp" />
+
+                <SeekBar
+                    android:id="@+id/sliderFlow"
+                    android:layout_width="match_parent"
+                    android:layout_height="24dp"
+                    android:max="200"
+                    android:progress="100"
+                    android:layout_marginBottom="4dp" />
+
+                <TextView
+                    android:id="@+id/tvFlowValue"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="100%"
+                    android:textColor="#06B6D4"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:fontFamily="monospace" />
+            </LinearLayout>
+        </LinearLayout>
 
     </LinearLayout>
 </ScrollView>
