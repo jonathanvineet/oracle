@@ -54,5 +54,5 @@ dependencies {
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
 
     // USB serial communication for 3D printer control
-    implementation 'com.github.mik3y:usb-serial-for-android:v3.4.8'
+    implementation 'com.github.mik3y:usb-serial-for-android:v3.10.0'
 }
