@@ -93,20 +93,27 @@ class PrinterController(
     /**
      * Movement commands.
      */
-    fun homeAll() = sendCommand("G28")
+    fun homeAll() {
+        updateState { it.copy(mode = PrinterMode.HOMING) }
+        sendCommand("G28")
+    }
+    
     fun moveX(mm: Float, relative: Boolean = false) {
+        updateState { it.copy(mode = PrinterMode.MOVING) }
         if (relative) sendCommand("G91")
         sendCommand("G1 X$mm F1500")
         if (relative) sendCommand("G90")
     }
 
     fun moveY(mm: Float, relative: Boolean = false) {
+        updateState { it.copy(mode = PrinterMode.MOVING) }
         if (relative) sendCommand("G91")
         sendCommand("G1 Y$mm F1500")
         if (relative) sendCommand("G90")
     }
 
     fun moveZ(mm: Float, relative: Boolean = false) {
+        updateState { it.copy(mode = PrinterMode.MOVING) }
         if (relative) sendCommand("G91")
         sendCommand("G1 Z$mm F1500")
         if (relative) sendCommand("G90")
@@ -118,35 +125,42 @@ class PrinterController(
      * Temperature commands (preheating).
      */
     fun preheatPLA() {
+        updateState { it.copy(mode = PrinterMode.HEATING) }
         sendCommand("M104 S200")
         sendCommand("M140 S60")
     }
 
     fun preheatPLAPlus() {
+        updateState { it.copy(mode = PrinterMode.HEATING) }
         sendCommand("M104 S210")
         sendCommand("M140 S70")
     }
 
     fun preheatPETG() {
+        updateState { it.copy(mode = PrinterMode.HEATING) }
         sendCommand("M104 S235")
         sendCommand("M140 S80")
     }
 
     fun preheatABS() {
+        updateState { it.copy(mode = PrinterMode.HEATING) }
         sendCommand("M104 S240")
         sendCommand("M140 S100")
     }
 
     fun preheatTPU() {
+        updateState { it.copy(mode = PrinterMode.HEATING) }
         sendCommand("M104 S220")
         sendCommand("M140 S50")
     }
 
     fun setNozzleTemp(celsius: Int) {
+        updateState { it.copy(mode = PrinterMode.HEATING) }
         sendCommand("M104 S$celsius")
     }
 
     fun setBedTemp(celsius: Int) {
+        updateState { it.copy(mode = PrinterMode.HEATING) }
         sendCommand("M140 S$celsius")
     }
 
@@ -185,7 +199,13 @@ class PrinterController(
     }
 
     /**
-     * Polling loop — every 500ms send M105/M114, every 10s send M115.
+     * Polling loop — adaptive based on mode.
+     * IDLE: M105 every 1.5s
+     * MOVING/HOMING: M114 only (position every 1.5s)
+     * HEATING: M105 only (temps every 1.5s)
+     * PRINTING: M105 + M114 (both every 1.5s)
+     * 
+     * NEVER poll when busy flag is true.
      */
     private fun startPolling() {
         if (pollingJob?.isActive == true) return
@@ -194,18 +214,38 @@ class PrinterController(
             var count = 0
             while (isActive && usbManager.isConnected()) {
                 try {
-                    // Every iteration: M105 (temp), M114 (position)
-                    sendCommand("M105")
-                    delay(50)
-                    sendCommand("M114")
+                    val currentState = state.get()
+                    
+                    // Skip polling entirely while busy
+                    if (currentState.busy) {
+                        delay(100)
+                        continue
+                    }
 
-                    // Every 20 iterations (10s): M115 (firmware)
-                    if (count % 20 == 0) {
-                        sendCommand("M115")
+                    // Mode-aware polling
+                    when (currentState.mode) {
+                        PrinterMode.IDLE -> {
+                            // Poll temps only in IDLE
+                            sendCommand("M105")
+                        }
+                        PrinterMode.MOVING, PrinterMode.HOMING -> {
+                            // Poll position only during movement
+                            sendCommand("M114")
+                        }
+                        PrinterMode.HEATING -> {
+                            // Poll temps only during heating
+                            sendCommand("M105")
+                        }
+                        PrinterMode.PRINTING -> {
+                            // Poll both during printing
+                            sendCommand("M105")
+                            delay(50)
+                            sendCommand("M114")
+                        }
                     }
 
                     count++
-                    delay(500)
+                    delay(1500) // 1.5s interval (was 500ms)
                 } catch (e: Exception) {
                     Log.e(TAG, "Polling error: ${e.message}")
                     break
@@ -246,11 +286,15 @@ class PrinterController(
             newState = newState.copy(firmware = it)
         }
 
-        // Check busy status
+        // Check busy status and return to IDLE when complete
         if (MarlinParser.isBusy(line)) {
             newState = newState.copy(busy = true, lastMessage = "Busy")
         } else if (MarlinParser.isOk(line)) {
             newState = newState.copy(busy = false)
+            // Return to IDLE after movement/heating completes
+            if (newState.mode != PrinterMode.IDLE && newState.mode != PrinterMode.PRINTING) {
+                newState = newState.copy(mode = PrinterMode.IDLE)
+            }
         }
 
         // Always update lastMessage
