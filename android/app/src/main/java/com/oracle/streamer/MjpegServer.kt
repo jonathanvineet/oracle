@@ -39,11 +39,12 @@ class MjpegServer {
     fun start() {
         serverJob = CoroutineScope(Dispatchers.IO).launch {
             try {
-                val bindIP = getTailscaleIP() ?: "0.0.0.0"  // Tailscale if available, else all interfaces
-                val ss = ServerSocket(StreamConfig.PORT, 50, java.net.InetAddress.getByName(bindIP))
+                // Always bind to 0.0.0.0 (all interfaces) so we're reachable from both Tailscale AND local WiFi
+                val ss = ServerSocket(StreamConfig.PORT, 50, java.net.InetAddress.getByName("0.0.0.0"))
                 serverSocket = ss
-                val displayIP = if (bindIP != "0.0.0.0") "🔗 $bindIP (Tailnet)" else "0.0.0.0"
-                Log.i(TAG, "MJPEG server listening on $displayIP:${StreamConfig.PORT}")
+                val tailscaleIP = getTailscaleIP()
+                val displayInfo = if (tailscaleIP != null) "🔗 $tailscaleIP (Tailnet) + Local WiFi" else "Local WiFi"
+                Log.i(TAG, "MJPEG server listening on all interfaces ($displayInfo):${StreamConfig.PORT}")
 
                 while (isActive) {
                     val socket = try {
