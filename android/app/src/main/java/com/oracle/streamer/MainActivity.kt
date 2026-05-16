@@ -1,7 +1,12 @@
 package com.oracle.streamer
 
 import android.Manifest
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
+import android.hardware.usb.UsbManager
 import android.net.wifi.WifiManager
 import android.os.Bundle
 import android.os.PowerManager
@@ -23,6 +28,31 @@ class MainActivity : AppCompatActivity() {
     private lateinit var wakeLock: PowerManager.WakeLock
     private var isStreaming = false
 
+    private val usbReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == UsbSerialManager.ACTION_USB_PERMISSION) {
+                val granted = intent.getBooleanExtra(
+                    UsbManager.EXTRA_PERMISSION_GRANTED,
+                    false
+                )
+                if (granted) {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "USB Permission Granted",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    connectPrinter()
+                } else {
+                    Toast.makeText(
+                        this@MainActivity,
+                        "USB Permission Denied",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        }
+    }
+
     companion object {
         private const val REQUEST_CAMERA = 100
         private const val REQUEST_USB = 101
@@ -42,6 +72,12 @@ class MainActivity : AppCompatActivity() {
         // Initialize printer controller
         printerController = PrinterController(UsbSerialManager(this))
         setupPrinterUI()
+
+        // Register USB permission receiver
+        registerReceiver(
+            usbReceiver,
+            IntentFilter(UsbSerialManager.ACTION_USB_PERMISSION)
+        )
 
         updateUI(streaming = false)
         detectAndShowIP()
@@ -172,6 +208,7 @@ class MainActivity : AppCompatActivity() {
         super.onDestroy()
         stopStreaming()
         printerController.close()
+        unregisterReceiver(usbReceiver)
     }
 
     /**
@@ -180,15 +217,7 @@ class MainActivity : AppCompatActivity() {
     private fun setupPrinterUI() {
         // Connect button
         binding.btnConnectPrinter.setOnClickListener {
-            printerController.connect { success, msg ->
-                runOnUiThread {
-                    if (success) {
-                        Toast.makeText(this, "Printer connected", Toast.LENGTH_SHORT).show()
-                    } else {
-                        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
+            connectPrinter()
         }
 
         // Preheat buttons
@@ -243,6 +272,21 @@ class MainActivity : AppCompatActivity() {
                 runOnUiThread { updatePrinterUI(newState) }
             }
         })
+    }
+
+    /**
+     * Connect to printer (called from button or USB permission receiver).
+     */
+    private fun connectPrinter() {
+        printerController.connect { success, msg ->
+            runOnUiThread {
+                if (success) {
+                    Toast.makeText(this, "Printer connected", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this, msg, Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
     }
 
     /**

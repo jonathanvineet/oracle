@@ -1,6 +1,8 @@
 package com.oracle.streamer
 
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.hardware.usb.UsbDeviceConnection
 import android.hardware.usb.UsbManager
 import android.util.Log
@@ -19,6 +21,10 @@ class UsbSerialManager(private val context: Context) {
     private var connection: UsbDeviceConnection? = null
 
     private val listeners = CopyOnWriteArrayList<SerialListener>()
+
+    companion object {
+        const val ACTION_USB_PERMISSION = "com.oracle.streamer.USB_PERMISSION"
+    }
 
     interface SerialListener {
         fun onLineReceived(line: String)
@@ -45,8 +51,14 @@ class UsbSerialManager(private val context: Context) {
             val device = driver.device
 
             if (!usbManager.hasPermission(device)) {
-                onResult(false, "USB permission required")
-                listeners.forEach { it.onError("USB permission not granted") }
+                val permissionIntent = PendingIntent.getBroadcast(
+                    context,
+                    0,
+                    Intent(ACTION_USB_PERMISSION),
+                    PendingIntent.FLAG_IMMUTABLE
+                )
+                usbManager.requestPermission(device, permissionIntent)
+                onResult(false, "Requesting USB permission...")
                 return
             }
 
