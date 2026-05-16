@@ -2,20 +2,12 @@ package com.oracle.streamer
 
 import android.util.Log
 import kotlinx.coroutines.*
-import java.util.*
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicReference
 
 /**
- * Printer control via serial command queue.
- * 
- * Implements the fundamental Marlin protocol:
- * 1. Send command
- * 2. Wait for "ok"
- * 3. Send next command
- * 
- * This ensures deterministic, professional printer control.
- * No buffering, no collisions, no state desyncs.
+ * High-level printer control and state management.
+ * Sends G-code safely, maintains polling loop, parses responses.
  */
 class PrinterController(
     private val usbManager: UsbSerialManager
@@ -24,9 +16,8 @@ class PrinterController(
     private val scope = CoroutineScope(Dispatchers.Default + Job())
     private val state = AtomicReference(PrinterState())
 
-    private val queue = ArrayDeque<String>()
-    private var isBusy = false
     private var pollingJob: Job? = null
+    private var readJob: Job? = null
     private val listeners = CopyOnWriteArrayList<StateListener>()
 
     interface StateListener {
@@ -58,129 +49,134 @@ class PrinterController(
      * Connect to printer.
      */
     fun connect(onResult: (success: Boolean, message: String) -> Unit) {
-        scope.launch {
-            usbManager.connect { success, msg ->
-                onResult(success, msg)
-            }
-        }
-    }
-
-    /**
-     * Close connection and cleanup.
-     */
-    fun close() {
-        stopPolling()
-        usbManager.disconnect()
-        scope.cancel()
-    }
-
-    /**
-     * Send raw G-code command.
-     * Queued for sequential transmission — waits for "ok" before sending next.
-     */
-    fun send(command: String) {
-        synchronized(queue) {
-            queue.add(command)
-            processQueue()
-        }
-    }
-
-    /**
-     * Process queued commands.
-     * Only sends one command at a time, waiting for "ok" response.
-     */
-    private fun processQueue() {
-        if (isBusy) return
-        if (queue.isEmpty()) return
-
-        isBusy = true
-        val cmd = queue.removeFirst()
-        
-        Log.d(TAG, "Sending: $cmd")
-        usbManager.sendCommand(cmd)
-    }
-
-    /**
-     * Handle printer response.
-     * Detects "ok" to release queue for next command.
-     */
-    private fun handleResponse(line: String) {
-        // Check for "ok" — releases queue for next command
-        if (line.startsWith("ok")) {
-            synchronized(queue) {
-                isBusy = false
-                processQueue()
-            }
-        }
-
-        // Parse telemetry
-        parse(line)
-    }
-
-    /**
-     * Parse Marlin response and update state.
-     */
-    private fun parse(line: String) {
-        when {
-            line.startsWith("T:") -> MarlinParser.parseTemperature(line)?.let { result ->
-                updateState { it.copy(
-                    nozzleTemp = result.nozzleTemp,
-                    nozzleTarget = result.nozzleTarget,
-                    bedTemp = result.bedTemp,
-                    bedTarget = result.bedTarget
-                )}
-            }
-            line.startsWith("X:") -> MarlinParser.parsePosition(line)?.let { result ->
-                updateState { it.copy(x = result.x, y = result.y, z = result.z) }
-            }
-            line.contains("FIRMWARE_NAME:") -> {
-                MarlinParser.parseFirmware(line)?.let { version ->
-                    updateState { it.copy(firmware = version) }
+        usbManager.connect { success, msg ->
+            if (success) {
+                // Start read loop in background
+                readJob = scope.launch {
+                    withContext(Dispatchers.IO) {
+                        usbManager.readLoop()
+                    }
                 }
             }
-            line.startsWith("echo:") || line.startsWith("error:") -> {
-                updateState { it.copy(lastMessage = line) }
-            }
+            onResult(success, msg)
         }
     }
 
     /**
-     * Start polling loop — queries temps & position every 1 second.
+     * Disconnect from printer.
      */
-    private fun startPolling() {
+    fun disconnect() {
         stopPolling()
-        pollingJob = scope.launch {
-            while (isActive) {
-                delay(1000) // 1 second polling
-                send("M105") // Temperature
-                send("M114") // Position
-            }
+        readJob?.cancel()
+        usbManager.disconnect()
+        updateState { PrinterState() }
+    }
+
+    /**
+     * Get current printer state.
+     */
+    fun getState(): PrinterState = state.get()
+
+    /**
+     * Send a G-code command safely (must go through controller).
+     */
+    fun sendCommand(command: String) {
+        if (!usbManager.isConnected()) {
+            Log.w(TAG, "Not connected, command ignored: $command")
+            return
+        }
+        scope.launch {
+            usbManager.sendCommand(command)
         }
     }
 
     /**
-     * Stop polling.
+     * Movement commands.
      */
-    private fun stopPolling() {
-        pollingJob?.cancel()
-        pollingJob = null
+    fun homeAll() = sendCommand("G28")
+    fun moveX(mm: Float, relative: Boolean = false) {
+        if (relative) sendCommand("G91")
+        sendCommand("G1 X$mm F1500")
+        if (relative) sendCommand("G90")
+    }
+
+    fun moveY(mm: Float, relative: Boolean = false) {
+        if (relative) sendCommand("G91")
+        sendCommand("G1 Y$mm F1500")
+        if (relative) sendCommand("G90")
+    }
+
+    fun moveZ(mm: Float, relative: Boolean = false) {
+        if (relative) sendCommand("G91")
+        sendCommand("G1 Z$mm F1500")
+        if (relative) sendCommand("G90")
+    }
+
+    fun disableSteppers() = sendCommand("M84")
+
+    /**
+     * Temperature commands (preheating).
+     */
+    fun preheatPLA() {
+        sendCommand("M104 S200")
+        sendCommand("M140 S60")
+    }
+
+    fun preheatPLAPlus() {
+        sendCommand("M104 S210")
+        sendCommand("M140 S70")
+    }
+
+    fun preheatPETG() {
+        sendCommand("M104 S235")
+        sendCommand("M140 S80")
+    }
+
+    fun preheatABS() {
+        sendCommand("M104 S240")
+        sendCommand("M140 S100")
+    }
+
+    fun preheatTPU() {
+        sendCommand("M104 S220")
+        sendCommand("M140 S50")
+    }
+
+    fun setNozzleTemp(celsius: Int) {
+        sendCommand("M104 S$celsius")
+    }
+
+    fun setBedTemp(celsius: Int) {
+        sendCommand("M140 S$celsius")
     }
 
     /**
-     * Update printer state atomically.
+     * Fan & speed commands.
      */
-    private fun updateState(block: (PrinterState) -> PrinterState) {
-        val old = state.get()
-        val new = block(old)
-        state.set(new)
-        listeners.forEach { it.onStateChanged(new) }
+    fun setFanPercent(percent: Int) {
+        val pwm = (percent * 255 / 100).coerceIn(0, 255)
+        sendCommand("M106 S$pwm")
+    }
+
+    fun setFeedrate(percent: Int) {
+        sendCommand("M220 S$percent")
+    }
+
+    fun setFlow(percent: Int) {
+        sendCommand("M221 S$percent")
     }
 
     /**
-     * Add listener for state changes.
+     * Safety.
+     */
+    fun emergencyStop() = sendCommand("M112")
+
+    /**
+     * State observer.
      */
     fun addListener(listener: StateListener) {
         listeners.add(listener)
+        // Immediately notify with current state
         listener.onStateChanged(state.get())
     }
 
@@ -189,73 +185,91 @@ class PrinterController(
     }
 
     /**
-     * Get current state.
+     * Polling loop — every 500ms send M105/M114, every 10s send M115.
      */
-    fun getState(): PrinterState = state.get()
+    private fun startPolling() {
+        if (pollingJob?.isActive == true) return
 
-    // ─── Simple GCODE builders ────────────────────────────────────────
+        pollingJob = scope.launch {
+            var count = 0
+            while (isActive && usbManager.isConnected()) {
+                try {
+                    // Every iteration: M105 (temp), M114 (position)
+                    sendCommand("M105")
+                    delay(50)
+                    sendCommand("M114")
 
-    fun homeAll() = send("G28")
-    fun homeX() = send("G28 X")
-    fun homeY() = send("G28 Y")
-    fun homeZ() = send("G28 Z")
+                    // Every 20 iterations (10s): M115 (firmware)
+                    if (count % 20 == 0) {
+                        sendCommand("M115")
+                    }
 
-    fun moveX(mm: Float, relative: Boolean = false) {
-        if (relative) send("G91")
-        send("G1 X${String.format("%.2f", mm)} F3000")
-        if (relative) send("G90")
+                    count++
+                    delay(500)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Polling error: ${e.message}")
+                    break
+                }
+            }
+        }
     }
 
-    fun moveY(mm: Float, relative: Boolean = false) {
-        if (relative) send("G91")
-        send("G1 Y${String.format("%.2f", mm)} F3000")
-        if (relative) send("G90")
+    private fun stopPolling() {
+        pollingJob?.cancel()
+        pollingJob = null
     }
 
-    fun moveZ(mm: Float, relative: Boolean = false) {
-        if (relative) send("G91")
-        send("G1 Z${String.format("%.2f", mm)} F3000")
-        if (relative) send("G90")
+    /**
+     * Handle serial response from printer.
+     */
+    private fun handleResponse(line: String) {
+        val currentState = state.get()
+        var newState = currentState
+
+        // Parse temperature
+        MarlinParser.parseTemperature(line)?.let {
+            newState = newState.copy(
+                nozzleTemp = it.nozzleTemp,
+                nozzleTarget = it.nozzleTarget,
+                bedTemp = it.bedTemp,
+                bedTarget = it.bedTarget
+            )
+        }
+
+        // Parse position
+        MarlinParser.parsePosition(line)?.let {
+            newState = newState.copy(x = it.x, y = it.y, z = it.z)
+        }
+
+        // Parse firmware
+        MarlinParser.parseFirmware(line)?.let {
+            newState = newState.copy(firmware = it)
+        }
+
+        // Check busy status
+        if (MarlinParser.isBusy(line)) {
+            newState = newState.copy(busy = true, lastMessage = "Busy")
+        } else if (MarlinParser.isOk(line)) {
+            newState = newState.copy(busy = false)
+        }
+
+        // Always update lastMessage
+        newState = newState.copy(lastMessage = line.take(50))
+
+        updateState { newState }
     }
 
-    fun setNozzleTemp(celsius: Int) = send("M104 S$celsius")
-    fun setBedTemp(celsius: Int) = send("M140 S$celsius")
+    private fun updateState(transform: (PrinterState) -> PrinterState) {
+        val oldState = state.getAndUpdate(transform)
+        val newState = state.get()
 
-    fun preheatPLA() {
-        send("M104 S200")
-        send("M140 S60")
+        if (oldState != newState) {
+            listeners.forEach { it.onStateChanged(newState) }
+        }
     }
 
-    fun preheatPLAPlus() {
-        send("M104 S220")
-        send("M140 S60")
+    fun close() {
+        scope.cancel()
+        disconnect()
     }
-
-    fun preheatPETG() {
-        send("M104 S230")
-        send("M140 S80")
-    }
-
-    fun preheatABS() {
-        send("M104 S240")
-        send("M140 S100")
-    }
-
-    fun preheatTPU() {
-        send("M104 S220")
-        send("M140 S60")
-    }
-
-    fun setFanPercent(percent: Int) {
-        val pwm = (percent * 255 / 100).coerceIn(0, 255)
-        send("M106 S$pwm")
-    }
-
-    fun setFeedrate(percent: Int) = send("M220 S$percent")
-
-    fun setFlow(percent: Int) = send("M221 S$percent")
-
-    fun disableSteppers() = send("M18")
-
-    fun emergencyStop() = send("M112")
 }
