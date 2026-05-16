@@ -74,9 +74,11 @@ class MainActivity : AppCompatActivity() {
         setupPrinterUI()
 
         // Register USB permission receiver
-        registerReceiver(
+        ContextCompat.registerReceiver(
+            this,
             usbReceiver,
-            IntentFilter(UsbSerialManager.ACTION_USB_PERMISSION)
+            IntentFilter(UsbSerialManager.ACTION_USB_PERMISSION),
+            ContextCompat.RECEIVER_NOT_EXPORTED
         )
 
         updateUI(streaming = false)
